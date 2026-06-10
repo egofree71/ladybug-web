@@ -1,11 +1,12 @@
+import { LEVEL_SCENE_OFFSET } from './screenLayout';
+
 /**
  * Authored rotating gate positions copied from the Godot Level.tscn scene.
  *
- * Godot stores the gate node position and the AnimatedSprite2D has a local
- * visual offset of (20, 28). The first web shell also shifts the whole playfield
- * 16 px to the right so the left timer bricks are not clipped by the canvas.
- * Phaser places sprites directly at their visual center, so both offsets are
- * applied here once for the static rendering pass.
+ * Godot stores each gate as a Node2D position under the shifted Level scene. The
+ * AnimatedSprite2D child then adds its own local visual offset of (20, 28). The
+ * Phaser shell draws the sprite directly at its visual center, so both offsets
+ * are applied here once for the static rendering pass.
  */
 export type GateOrientation = 'horizontal' | 'vertical';
 
@@ -16,11 +17,6 @@ export interface GateDefinition {
   readonly orientation: GateOrientation;
 }
 
-const PLAYFIELD_OFFSET = {
-  x: 16,
-  y: 0,
-} as const;
-
 const GATE_SPRITE_OFFSET = {
   x: 20,
   y: 28,
@@ -29,8 +25,8 @@ const GATE_SPRITE_OFFSET = {
 function gate(id: number, x: number, y: number, orientation: GateOrientation = 'horizontal'): GateDefinition {
   return {
     id,
-    x: x + PLAYFIELD_OFFSET.x + GATE_SPRITE_OFFSET.x,
-    y: y + PLAYFIELD_OFFSET.y + GATE_SPRITE_OFFSET.y,
+    x: x + LEVEL_SCENE_OFFSET.x + GATE_SPRITE_OFFSET.x,
+    y: y + LEVEL_SCENE_OFFSET.y + GATE_SPRITE_OFFSET.y,
     orientation,
   };
 }
