@@ -1,36 +1,48 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
-import { COLORS, FONT, HUD } from '../layout/screenLayout';
+import { FONT, HUD } from '../layout/screenLayout';
+import { createPixelText } from './pixelTextView';
 
-function hudTextStyle(fontSizePx: number): Phaser.Types.GameObjects.Text.TextStyle {
-  return {
-    fontFamily: `${FONT.family}, ${FONT.fallbackFamily}`,
-    fontSize: `${fontSizePx}px`,
-    color: COLORS.grey,
-  };
-}
+const HUD_GREY_TINT = 0xc8c8c8;
 
 /**
  * Draws the non-interactive HUD shell: SPECIAL, EXTRA, multiplier labels,
  * reserve lives, and score.
  *
- * The current score and word/multiplier colors are placeholders. The scoring and
- * collectible branches will later replace this with dynamic HUD state.
+ * The text is rendered with a generated bitmap font instead of Phaser Text so
+ * the static screen remains sharp in native pixel-perfect mode. The current
+ * score and word/multiplier colors are placeholders. The scoring and collectible
+ * branches will later replace this with dynamic HUD state.
  */
 export function createHud(scene: Phaser.Scene): void {
-  scene.add
-    .text(HUD.leftX, HUD.topY, 'SPECIAL', hudTextStyle(FONT.topSizePx))
-    .setDepth(100);
+  createPixelText(scene, {
+    text: 'SPECIAL',
+    x: HUD.leftX,
+    y: HUD.topY,
+    fontSize: FONT.topSizePx,
+    tint: HUD_GREY_TINT,
+    depth: 100,
+  });
 
-  scene.add
-    .text(HUD.centerX, HUD.topY, 'EXTRA', hudTextStyle(FONT.topSizePx))
-    .setOrigin(0.5, 0)
-    .setDepth(100);
+  createPixelText(scene, {
+    text: 'EXTRA',
+    x: HUD.centerX,
+    y: HUD.topY,
+    fontSize: FONT.topSizePx,
+    tint: HUD_GREY_TINT,
+    align: 'center',
+    depth: 100,
+  });
 
-  scene.add
-    .text(HUD.rightX, HUD.topY, 'x2 x3 x5', hudTextStyle(FONT.topSizePx))
-    .setOrigin(1, 0)
-    .setDepth(100);
+  createPixelText(scene, {
+    text: 'x2 x3 x5',
+    x: HUD.rightX,
+    y: HUD.topY,
+    fontSize: FONT.topSizePx,
+    tint: HUD_GREY_TINT,
+    align: 'right',
+    depth: 100,
+  });
 
   // The Godot HUD displays reserve lives only while the current ladybug is in
   // the maze. With three lives total, that means two visible spare icons.
@@ -41,8 +53,14 @@ export function createHud(scene: Phaser.Scene): void {
       .setDepth(100);
   }
 
-  scene.add
-    .text(HUD.scoreX, HUD.bottomScoreCenterY, '0', hudTextStyle(FONT.scoreSizePx))
-    .setOrigin(1, 0.5)
-    .setDepth(100);
+  createPixelText(scene, {
+    text: '0',
+    x: HUD.scoreX,
+    y: HUD.bottomScoreCenterY,
+    fontSize: FONT.scoreSizePx,
+    tint: HUD_GREY_TINT,
+    align: 'right',
+    originY: 0.5,
+    depth: 100,
+  });
 }

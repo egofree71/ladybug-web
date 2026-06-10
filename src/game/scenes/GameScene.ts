@@ -34,6 +34,16 @@ export class GameScene extends Phaser.Scene {
       frameWidth: 64,
       frameHeight: 64,
     });
+
+    this.load.spritesheet(ASSET_KEYS.hudArcadeFont26, assetUrl('assets/fonts/hud_arcade_font_26.png'), {
+      frameWidth: 26,
+      frameHeight: 28,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.hudArcadeFont28, assetUrl('assets/fonts/hud_arcade_font_28.png'), {
+      frameWidth: 28,
+      frameHeight: 28,
+    });
   }
 
   public create(): void {
