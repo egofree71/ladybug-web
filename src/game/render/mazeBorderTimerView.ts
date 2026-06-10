@@ -65,13 +65,21 @@ function buildBorderTimerTilePlacements(): BorderTimerTilePlacement[] {
     placements.push({ role: BorderTimerTileRole.RightVertical, x: right + BORDER_TIMER.rightExtraGap, y: top + y * tileSize });
   }
 
-  placements.push({ role: BorderTimerTileRole.BottomRightCorner, x: right, y: bottom });
+  placements.push({
+    role: BorderTimerTileRole.BottomRightCorner,
+    x: right,
+    y: bottom + BORDER_TIMER.bottomCornerYOffset,
+  });
 
   for (let x = columns - 1; x >= 0; x--) {
     placements.push({ role: BorderTimerTileRole.BottomHorizontal, x: left + x * tileSize, y: bottom + BORDER_TIMER.bottomExtraGap });
   }
 
-  placements.push({ role: BorderTimerTileRole.BottomLeftCorner, x: left - tileSize, y: bottom });
+  placements.push({
+    role: BorderTimerTileRole.BottomLeftCorner,
+    x: left - tileSize,
+    y: bottom + BORDER_TIMER.bottomCornerYOffset,
+  });
 
   for (let y = rows - 1; y >= 0; y--) {
     placements.push({

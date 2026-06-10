@@ -47,16 +47,24 @@ async function loadArcadeFont(): Promise<void> {
   }
 }
 
+function usesNativePixelScale(): boolean {
+  return new URLSearchParams(window.location.search).has('native');
+}
+
 /**
  * Creates the Phaser game once the arcade font is ready enough for the HUD.
  *
- * The game uses an 800x880 logical canvas, matching the Godot remake layout.
- * Phaser can scale that canvas to the browser window, but gameplay coordinates
- * should remain expressed in this stable coordinate system.
+ * By default the canvas is fitted uniformly in the browser window, so the whole
+ * 800x880 game is visible without scrollbars. Adding ?native=1 keeps the canvas
+ * at the exact 800x880 native size for pixel measurements while tuning layout.
  */
 async function bootstrap(): Promise<void> {
   const app = document.querySelector<HTMLDivElement>('#app') ?? document.body;
   const container = document.createElement('div');
+  const nativePixelScale = usesNativePixelScale();
+
+  document.body.classList.toggle('native-pixel-scale', nativePixelScale);
+
   container.id = 'game-container';
   app.appendChild(container);
 
@@ -71,7 +79,9 @@ async function bootstrap(): Promise<void> {
     pixelArt: true,
     roundPixels: true,
     scale: {
-      mode: Phaser.Scale.FIT,
+      // Normal mode: uniform fit, useful for playing and previewing the whole
+      // screen. Native mode: no scaling, useful for checking exact pixel gaps.
+      mode: nativePixelScale ? Phaser.Scale.NONE : Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
     scene: [GameScene],

@@ -23,5 +23,31 @@ body {
 }
 
 canvas {
+  display: block;
   image-rendering: pixelated;
+}
+
+/**
+ * Native pixel mode is used only for layout tuning: open the game with
+ * ?native=1 to disable responsive scaling and inspect exact 800x880 pixels.
+ */
+body.native-pixel-scale {
+  overflow: auto;
+}
+
+body.native-pixel-scale #app {
+  min-width: 800px;
+  min-height: 880px;
+  align-items: flex-start;
+}
+
+body.native-pixel-scale #game-container {
+  flex: 0 0 auto;
+  width: 800px;
+  height: 880px;
+}
+
+body.native-pixel-scale canvas {
+  width: 800px !important;
+  height: 880px !important;
 }

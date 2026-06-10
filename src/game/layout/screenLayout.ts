@@ -44,7 +44,14 @@ export const BORDER_TIMER = {
   // edges. The tile artwork itself has transparent margins, which is what creates
   // the visible 4 px gap between the colored bricks and the purple maze wall.
   rightExtraGap: 8,
-  bottomExtraGap: 8,
+
+  // The bottom horizontal tiles look correct one pixel above the Godot-authored
+  // bottom offset in Phaser's native-pixel rendering.
+  bottomExtraGap: 7,
+
+  // Keep only the bottom corner tiles one pixel above the vertical tile grid so
+  // their visible brick band aligns with the bottom horizontal edge.
+  bottomCornerYOffset: -1,
   leftVerticalInset: 0,
 
   // Temporary visual progress for the static screen branch. The real timer
@@ -56,7 +63,7 @@ export const HUD = {
   // These are the screen-space anchors from Level.tscn. They intentionally do
   // not include LEVEL_SCENE_OFFSET because the Godot HUD is rendered by a
   // CanvasLayer, not inside the shifted Level coordinate space.
-  topY: 9,
+  topY: 15,
   leftX: 22,
   centerX: SCREEN.width / 2,
   rightX: SCREEN.width - 22,
