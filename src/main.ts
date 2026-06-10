@@ -1,60 +1,91 @@
-import './style.css'
-import typescriptLogo from './assets/typescript.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import { setupCounter } from './counter.ts'
+import Phaser from 'phaser';
+import './style.css';
+import { assetUrl } from './game/assets';
+import { FONT, SCREEN } from './game/layout/screenLayout';
+import { GameScene } from './game/scenes/GameScene';
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-<section id="center">
-  <div class="hero">
-    <img src="${heroImg}" class="base" width="170" height="179">
-    <img src="${typescriptLogo}" class="framework" alt="TypeScript logo"/>
-    <img src="${viteLogo}" class="vite" alt="Vite logo" />
-  </div>
-  <div>
-    <h1>Get started</h1>
-    <p>Edit <code>src/main.ts</code> and save to test <code>HMR</code></p>
-  </div>
-  <button id="counter" type="button" class="counter"></button>
-</section>
+function installArcadeFontCss(fontUrl: string): void {
+  const style = document.createElement('style');
+  style.textContent = `
+    @font-face {
+      font-family: '${FONT.family}';
+      src: url('${fontUrl}') format('truetype');
+      font-weight: 400;
+      font-style: normal;
+      font-display: block;
+    }
+  `;
+  document.head.appendChild(style);
+}
 
-<div class="ticks"></div>
+/**
+ * Loads the arcade font before Phaser creates text objects.
+ *
+ * The Godot remake also uses PressStart2P for the HUD. The web version registers
+ * that TTF under the simple family name "LadyBugArcade" to avoid browser/canvas
+ * quoting problems with font names containing spaces.
+ */
+async function loadArcadeFont(): Promise<void> {
+  const fontUrl = assetUrl('assets/fonts/PressStart2P-Regular.ttf');
+  installArcadeFontCss(fontUrl);
 
-<section id="next-steps">
-  <div id="docs">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#documentation-icon"></use></svg>
-    <h2>Documentation</h2>
-    <p>Your questions, answered</p>
-    <ul>
-      <li>
-        <a href="https://vite.dev/" target="_blank">
-          <img class="logo" src="${viteLogo}" alt="" />
-          Explore Vite
-        </a>
-      </li>
-      <li>
-        <a href="https://www.typescriptlang.org" target="_blank">
-          <img class="button-icon" src="${typescriptLogo}" alt="">
-          Learn more
-        </a>
-      </li>
-    </ul>
-  </div>
-  <div id="social">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#social-icon"></use></svg>
-    <h2>Connect with us</h2>
-    <p>Join the Vite community</p>
-    <ul>
-      <li><a href="https://github.com/vitejs/vite" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#github-icon"></use></svg>GitHub</a></li>
-      <li><a href="https://chat.vite.dev/" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#discord-icon"></use></svg>Discord</a></li>
-      <li><a href="https://x.com/vite_js" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#x-icon"></use></svg>X.com</a></li>
-      <li><a href="https://bsky.app/profile/vite.dev" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#bluesky-icon"></use></svg>Bluesky</a></li>
-    </ul>
-  </div>
-</section>
+  if (!('fonts' in document) || !('FontFace' in window)) {
+    return;
+  }
 
-<div class="ticks"></div>
-<section id="spacer"></section>
-`
+  try {
+    const arcadeFont = new FontFace(FONT.family, `url('${fontUrl}') format('truetype')`);
+    const loadedFont = await arcadeFont.load();
+    document.fonts.add(loadedFont);
+    await document.fonts.load(`${FONT.topSizePx}px ${FONT.family}`);
+    await document.fonts.ready;
+  } catch (error) {
+    // Keep the game bootable even if the browser cannot load the font. The HUD
+    // will fall back to monospace, making the problem visible without blocking
+    // the playfield preview.
+    console.warn('[LadyBugWeb] Could not load arcade HUD font.', error);
+  }
+}
 
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+function usesNativePixelScale(): boolean {
+  return new URLSearchParams(window.location.search).has('native');
+}
+
+/**
+ * Creates the Phaser game once the arcade font is ready enough for the HUD.
+ *
+ * By default the canvas is fitted uniformly in the browser window, so the whole
+ * 800x880 game is visible without scrollbars. Adding ?native=1 keeps the canvas
+ * at the exact 800x880 native size for pixel measurements while tuning layout.
+ */
+async function bootstrap(): Promise<void> {
+  const app = document.querySelector<HTMLDivElement>('#app') ?? document.body;
+  const container = document.createElement('div');
+  const nativePixelScale = usesNativePixelScale();
+
+  document.body.classList.toggle('native-pixel-scale', nativePixelScale);
+
+  container.id = 'game-container';
+  app.appendChild(container);
+
+  await loadArcadeFont();
+
+  new Phaser.Game({
+    type: Phaser.AUTO,
+    parent: container,
+    width: SCREEN.width,
+    height: SCREEN.height,
+    backgroundColor: '#000000',
+    pixelArt: true,
+    roundPixels: true,
+    scale: {
+      // Normal mode: uniform fit, useful for playing and previewing the whole
+      // screen. Native mode: no scaling, useful for checking exact pixel gaps.
+      mode: nativePixelScale ? Phaser.Scale.NONE : Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+    },
+    scene: [GameScene],
+  });
+}
+
+void bootstrap();
