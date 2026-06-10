@@ -2,16 +2,18 @@ import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 import { BORDER_TIMER, COLORS, MAZE } from '../layout/screenLayout';
 
-enum BorderTimerTileRole {
-  TopLeftCorner,
-  TopRightCorner,
-  BottomLeftCorner,
-  BottomRightCorner,
-  TopHorizontal,
-  BottomHorizontal,
-  LeftVertical,
-  RightVertical,
-}
+const BORDER_TIMER_TILE_ROLE = {
+  topLeftCorner: 'topLeftCorner',
+  topRightCorner: 'topRightCorner',
+  bottomLeftCorner: 'bottomLeftCorner',
+  bottomRightCorner: 'bottomRightCorner',
+  topHorizontal: 'topHorizontal',
+  bottomHorizontal: 'bottomHorizontal',
+  leftVertical: 'leftVertical',
+  rightVertical: 'rightVertical',
+} as const;
+
+type BorderTimerTileRole = (typeof BORDER_TIMER_TILE_ROLE)[keyof typeof BORDER_TIMER_TILE_ROLE];
 
 interface BorderTimerTilePlacement {
   readonly x: number;
@@ -21,19 +23,19 @@ interface BorderTimerTilePlacement {
 
 function frameForRole(role: BorderTimerTileRole): number {
   switch (role) {
-    case BorderTimerTileRole.TopLeftCorner:
+    case BORDER_TIMER_TILE_ROLE.topLeftCorner:
       return 0;
-    case BorderTimerTileRole.TopRightCorner:
+    case BORDER_TIMER_TILE_ROLE.topRightCorner:
       return 1;
-    case BorderTimerTileRole.BottomLeftCorner:
+    case BORDER_TIMER_TILE_ROLE.bottomLeftCorner:
       return 2;
-    case BorderTimerTileRole.BottomRightCorner:
+    case BORDER_TIMER_TILE_ROLE.bottomRightCorner:
       return 3;
-    case BorderTimerTileRole.LeftVertical:
-    case BorderTimerTileRole.RightVertical:
+    case BORDER_TIMER_TILE_ROLE.leftVertical:
+    case BORDER_TIMER_TILE_ROLE.rightVertical:
       return 4;
-    case BorderTimerTileRole.TopHorizontal:
-    case BorderTimerTileRole.BottomHorizontal:
+    case BORDER_TIMER_TILE_ROLE.topHorizontal:
+    case BORDER_TIMER_TILE_ROLE.bottomHorizontal:
       return 5;
   }
 }
@@ -53,37 +55,37 @@ function buildBorderTimerTilePlacements(): BorderTimerTilePlacement[] {
   const bottom = top + rows * tileSize;
   const placements: BorderTimerTilePlacement[] = [];
 
-  placements.push({ role: BorderTimerTileRole.TopLeftCorner, x: left - tileSize, y: top - tileSize });
+  placements.push({ role: BORDER_TIMER_TILE_ROLE.topLeftCorner, x: left - tileSize, y: top - tileSize });
 
   for (let x = 0; x < columns; x++) {
-    placements.push({ role: BorderTimerTileRole.TopHorizontal, x: left + x * tileSize, y: top - tileSize });
+    placements.push({ role: BORDER_TIMER_TILE_ROLE.topHorizontal, x: left + x * tileSize, y: top - tileSize });
   }
 
-  placements.push({ role: BorderTimerTileRole.TopRightCorner, x: right, y: top - tileSize });
+  placements.push({ role: BORDER_TIMER_TILE_ROLE.topRightCorner, x: right, y: top - tileSize });
 
   for (let y = 0; y < rows; y++) {
-    placements.push({ role: BorderTimerTileRole.RightVertical, x: right + BORDER_TIMER.rightExtraGap, y: top + y * tileSize });
+    placements.push({ role: BORDER_TIMER_TILE_ROLE.rightVertical, x: right + BORDER_TIMER.rightExtraGap, y: top + y * tileSize });
   }
 
   placements.push({
-    role: BorderTimerTileRole.BottomRightCorner,
+    role: BORDER_TIMER_TILE_ROLE.bottomRightCorner,
     x: right,
     y: bottom + BORDER_TIMER.bottomCornerYOffset,
   });
 
   for (let x = columns - 1; x >= 0; x--) {
-    placements.push({ role: BorderTimerTileRole.BottomHorizontal, x: left + x * tileSize, y: bottom + BORDER_TIMER.bottomExtraGap });
+    placements.push({ role: BORDER_TIMER_TILE_ROLE.bottomHorizontal, x: left + x * tileSize, y: bottom + BORDER_TIMER.bottomExtraGap });
   }
 
   placements.push({
-    role: BorderTimerTileRole.BottomLeftCorner,
+    role: BORDER_TIMER_TILE_ROLE.bottomLeftCorner,
     x: left - tileSize,
     y: bottom + BORDER_TIMER.bottomCornerYOffset,
   });
 
   for (let y = rows - 1; y >= 0; y--) {
     placements.push({
-      role: BorderTimerTileRole.LeftVertical,
+      role: BORDER_TIMER_TILE_ROLE.leftVertical,
       x: left - tileSize + BORDER_TIMER.leftVerticalInset,
       y: top + y * tileSize,
     });
@@ -114,11 +116,11 @@ export function createMazeBorderTimer(scene: Phaser.Scene): void {
       .setDepth(10)
       .setTint(isGreen ? COLORS.green : COLORS.white);
 
-    if (placement.role === BorderTimerTileRole.RightVertical) {
+    if (placement.role === BORDER_TIMER_TILE_ROLE.rightVertical) {
       sprite.setFlipX(true);
     }
 
-    if (placement.role === BorderTimerTileRole.BottomHorizontal) {
+    if (placement.role === BORDER_TIMER_TILE_ROLE.bottomHorizontal) {
       sprite.setFlipY(true);
     }
   });

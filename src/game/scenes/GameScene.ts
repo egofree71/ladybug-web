@@ -3,6 +3,7 @@ import { ASSET_KEYS, assetUrl } from '../assets';
 import { MAZE } from '../layout/screenLayout';
 import { createHud } from '../render/hudView';
 import { createMazeBorderTimer } from '../render/mazeBorderTimerView';
+import { createBaseFlowerCollectibles } from '../render/collectibleView';
 import { createRotatingGates } from '../render/gateView';
 
 /**
@@ -30,6 +31,13 @@ export class GameScene extends Phaser.Scene {
       frameHeight: 128,
     });
 
+    this.load.spritesheet(ASSET_KEYS.collectibles, assetUrl('assets/sprites/props/collectibles.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.json(ASSET_KEYS.collectibleLayout, assetUrl('assets/data/collectibles_layout.json'));
+
     this.load.spritesheet(ASSET_KEYS.ladybug, assetUrl('assets/sprites/player/ladybug_spritesheet.png'), {
       frameWidth: 64,
       frameHeight: 64,
@@ -55,6 +63,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(0);
 
     createMazeBorderTimer(this);
+    createBaseFlowerCollectibles(this);
     createRotatingGates(this);
     createHud(this);
   }
