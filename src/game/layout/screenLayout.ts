@@ -56,7 +56,7 @@ export const HUD = {
   // These are the screen-space anchors from Level.tscn. They intentionally do
   // not include LEVEL_SCENE_OFFSET because the Godot HUD is rendered by a
   // CanvasLayer, not inside the shifted Level coordinate space.
-  topY: 4,
+  topY: 9,
   leftX: 22,
   centerX: SCREEN.width / 2,
   rightX: SCREEN.width - 22,
