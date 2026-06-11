@@ -17,7 +17,7 @@ import { PlayerMovementMotor } from '../gameplay/player/playerMovementMotor';
 import { PLAYER_LAYOUT } from '../layout/playerLayout';
 import { createHud, type HudView } from '../render/hudView';
 import { CollectiblePickupPopupView } from '../render/collectiblePickupPopupView';
-import { createMazeBorderTimer } from '../render/mazeBorderTimerView';
+import { createMazeBorderTimer, type MazeBorderTimerView } from '../render/mazeBorderTimerView';
 import { createLevelOneCollectibles, type CollectibleFieldView } from '../render/collectibleView';
 import { createRotatingGates, type GateFieldView } from '../render/gateView';
 import { getPlayerStartCenter } from '../layout/playerLayout';
@@ -40,6 +40,7 @@ export class GameScene extends Phaser.Scene {
   private readonly pickupPopupState = new CollectiblePickupPopupState();
   private collectibleField?: CollectibleFieldView;
   private gateField?: GateFieldView;
+  private borderTimer?: MazeBorderTimerView;
   private hud?: HudView;
   private pickupPopupView?: CollectiblePickupPopupView;
   private player?: PlayerView;
@@ -132,7 +133,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setDepth(0);
 
-    createMazeBorderTimer(this);
+    this.borderTimer = createMazeBorderTimer(this, 1);
     this.collectibleField = createLevelOneCollectibles(this, this.collectibleColorCycle.currentColor);
     this.gateField = createRotatingGates(this);
 
@@ -175,6 +176,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.gateField?.gateSystem.advanceOneTick();
+    this.advanceBorderTimerOneTick();
 
     if (this.collectibleColorCycle.advanceOneTick()) {
       this.collectibleField?.applyColorCycle(this.collectibleColorCycle.currentColor);
@@ -182,6 +184,21 @@ export class GameScene extends Phaser.Scene {
 
     this.advancePlayerOneTick();
     this.gateField?.syncFromRuntimeState();
+  }
+
+  private advanceBorderTimerOneTick(): void {
+    const stepResult = this.borderTimer?.advanceOneSimulationTick();
+
+    if (!stepResult?.shouldReleaseEnemy) {
+      return;
+    }
+
+    this.handleBorderTimerReleaseOpportunity();
+  }
+
+  private handleBorderTimerReleaseOpportunity(): void {
+    // EnemyRuntime will consume this hook in the enemy-spawn branch. Keeping the
+    // release signal connected now avoids coupling future spawn timing to visuals.
   }
 
   private advancePlayerOneTick(): void {
@@ -295,6 +312,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.playerMovement?.resetToStartCell();
+    this.borderTimer?.resetTimer();
     this.startPlayerEntryAnimation();
   }
 

@@ -53,10 +53,6 @@ export const BORDER_TIMER = {
   // their visible brick band aligns with the bottom horizontal edge.
   bottomCornerYOffset: -1,
   leftVerticalInset: 0,
-
-  // Temporary visual progress for the static screen branch. The real timer
-  // simulation will replace this in a later feature branch.
-  previewGreenTileCount: 34,
 } as const;
 
 export const HUD = {

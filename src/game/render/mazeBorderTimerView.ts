@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
+import { EnemyReleaseBorderTimer, type EnemyReleaseBorderTimerStepResult } from '../gameplay/enemies/enemyReleaseBorderTimer';
 import { BORDER_TIMER, COLORS, MAZE } from '../layout/screenLayout';
 
 const BORDER_TIMER_TILE_ROLE = {
@@ -19,6 +20,13 @@ interface BorderTimerTilePlacement {
   readonly x: number;
   readonly y: number;
   readonly role: BorderTimerTileRole;
+}
+
+export interface MazeBorderTimerView {
+  readonly timer: EnemyReleaseBorderTimer;
+  resetTimer(): void;
+  configureForLevel(levelNumber: number): void;
+  advanceOneSimulationTick(): EnemyReleaseBorderTimerStepResult;
 }
 
 function frameForRole(role: BorderTimerTileRole): number {
@@ -95,26 +103,27 @@ function buildBorderTimerTilePlacements(): BorderTimerTilePlacement[] {
 }
 
 /**
- * Renders the maze border timer ring as white and green tiles.
+ * Renders and advances the maze border timer ring.
  *
- * For this first branch the amount of green progress is fixed. The tile order and
- * top-middle start index already match the Godot implementation, so the later
- * enemy-release timer can drive the same visual layer instead of replacing it.
+ * The view owns only Phaser sprites and visual synchronization. Its runtime state
+ * is delegated to EnemyReleaseBorderTimer so future enemy code can consume the
+ * same release signal without reading sprite colors.
  */
-export function createMazeBorderTimer(scene: Phaser.Scene): void {
+export function createMazeBorderTimer(scene: Phaser.Scene, levelNumber = 1): MazeBorderTimerView {
   const placements = buildBorderTimerTilePlacements();
   const columns = Math.round(MAZE.outerWallWidth / BORDER_TIMER.tileSize);
   const cycleStartSpriteIndex = 1 + Math.floor(columns / 2);
+  const sprites: Phaser.GameObjects.Sprite[] = [];
+  const timer = new EnemyReleaseBorderTimer(
+    placements.length,
+    EnemyReleaseBorderTimer.getTicksPerTileForLevel(levelNumber),
+  );
 
-  placements.forEach((placement, spriteIndex) => {
-    const timerIndex = positiveModulo(spriteIndex - cycleStartSpriteIndex, placements.length);
-    const isGreen = timerIndex < BORDER_TIMER.previewGreenTileCount;
-
+  placements.forEach((placement) => {
     const sprite = scene.add
       .sprite(placement.x, placement.y, ASSET_KEYS.borderTimerTiles, frameForRole(placement.role))
       .setOrigin(0, 0)
-      .setDepth(10)
-      .setTint(isGreen ? COLORS.green : COLORS.white);
+      .setDepth(10);
 
     if (placement.role === BORDER_TIMER_TILE_ROLE.rightVertical) {
       sprite.setFlipX(true);
@@ -123,5 +132,41 @@ export function createMazeBorderTimer(scene: Phaser.Scene): void {
     if (placement.role === BORDER_TIMER_TILE_ROLE.bottomHorizontal) {
       sprite.setFlipY(true);
     }
+
+    sprites.push(sprite);
   });
+
+  function applyTimerVisualState(): void {
+    sprites.forEach((sprite, spriteIndex) => {
+      const timerIndex = positiveModulo(spriteIndex - cycleStartSpriteIndex, sprites.length);
+      sprite.setTint(timer.isTileGreen(timerIndex) ? COLORS.green : COLORS.white);
+    });
+  }
+
+  applyTimerVisualState();
+
+  return {
+    timer,
+
+    resetTimer(): void {
+      timer.reset();
+      applyTimerVisualState();
+    },
+
+    configureForLevel(nextLevelNumber: number): void {
+      timer.ticksPerTile = EnemyReleaseBorderTimer.getTicksPerTileForLevel(Math.max(1, nextLevelNumber));
+      timer.reset();
+      applyTimerVisualState();
+    },
+
+    advanceOneSimulationTick(): EnemyReleaseBorderTimerStepResult {
+      const stepResult = timer.advanceOneTick();
+
+      if (stepResult.visualChanged) {
+        applyTimerVisualState();
+      }
+
+      return stepResult;
+    },
+  };
 }
