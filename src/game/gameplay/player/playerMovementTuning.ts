@@ -15,7 +15,9 @@ export const PLAYER_MOVEMENT_TUNING = {
   horizontalRailSnapTolerance: 1,
   verticalRailSnapTolerance: 1,
   spriteRenderOffsetLeftArcade: vec2(5, 8),
-  spriteRenderOffsetRightArcade: vec2(4, 8),
+  // Keep the right-facing sprite aligned with the vertical/left offsets.
+  // The collision probe still stops at the safe Godot value; this is only visual.
+  spriteRenderOffsetRightArcade: vec2(5, 8),
   spriteRenderOffsetVerticalArcade: vec2(5, 8),
 } as const;
 
