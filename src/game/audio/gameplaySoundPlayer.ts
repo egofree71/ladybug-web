@@ -7,6 +7,7 @@ const JINGLE_VOLUME = 0.85;
 const DEATH_VOLUME = 0.85;
 const ENEMY_DEATH_VOLUME = 0.85;
 const ENEMY_EXIT_WARNING_VOLUME = 0.85;
+const TIMER_STEP_VOLUME = 0.8;
 const VEGETABLE_PICKUP_VOLUME = 0.85;
 
 /**
@@ -19,6 +20,7 @@ const VEGETABLE_PICKUP_VOLUME = 0.85;
  */
 export class GameplaySoundPlayer {
   private readonly scene: Phaser.Scene;
+  private timerAudioCountdown = 0;
 
   public constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -86,6 +88,35 @@ export class GameplaySoundPlayer {
     this.restart(ASSET_KEYS.enemyExitWarningSound, ENEMY_EXIT_WARNING_VOLUME);
   }
 
+  /** Resets the audible border-timer cadence, usually when a level or attempt starts. */
+  public resetTimerStepCadence(levelNumber: number): void {
+    this.timerAudioCountdown = getTimerAudioPeriod(levelNumber);
+  }
+
+  /**
+   * Advances the independent audible border-timer cadence by one simulation tick.
+   *
+   * The visual timer still owns the real enemy-release cadence. For level 1 the
+   * audible cadence matches the visual one: one timer.wav restart every 9 fixed
+   * simulation ticks. Later levels can speed this up without changing callers.
+   */
+  public advanceTimerSoundOneTick(levelNumber: number): void {
+    const period = getTimerAudioPeriod(levelNumber);
+
+    if (this.timerAudioCountdown <= 0) {
+      this.timerAudioCountdown = period;
+    }
+
+    this.timerAudioCountdown -= 1;
+
+    if (this.timerAudioCountdown !== 0) {
+      return;
+    }
+
+    this.restart(ASSET_KEYS.timerStepSound, TIMER_STEP_VOLUME);
+    this.timerAudioCountdown = period;
+  }
+
   /** Short effect used when the central vegetable bonus is consumed. */
   public playVegetablePickup(): void {
     this.playStackable(ASSET_KEYS.vegetablePickupSound, VEGETABLE_PICKUP_VOLUME);
@@ -111,4 +142,26 @@ export class GameplaySoundPlayer {
     this.scene.sound.stopByKey(key);
     this.scene.sound.play(key, { volume });
   }
+}
+
+/** Returns the audible timer period in fixed simulation ticks. */
+function getTimerAudioPeriod(levelNumber: number): number {
+  // Visual / logical border cadence from the arcade:
+  // level 1:      visible step every 9 simulation ticks
+  // levels 2-4:   visible step every 6 simulation ticks
+  // level 5+:     visible step every 3 simulation ticks
+  //
+  // Audible policy copied from the Godot remake:
+  // level 1:      match the visual cadence: 9 ticks
+  // levels 2-4:   match the visual cadence: 6 ticks
+  // level 5+:     use a regular 4-tick sound cadence.
+  if (levelNumber <= 1) {
+    return 9;
+  }
+
+  if (levelNumber < 5) {
+    return 6;
+  }
+
+  return 4;
 }

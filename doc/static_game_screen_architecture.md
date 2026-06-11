@@ -38,7 +38,7 @@ The current branch implements:
 - the red shrink / ghost death sequence ported from Godot;
 - life count updates after death;
 - respawn from the HUD life icons when reserve lives remain;
-- gameplay sound effects for player entry, flower pickup, heart / letter pickup, gate rotation and player death;
+- gameplay sound effects for player entry, flower pickup, heart / letter pickup, gate rotation, player death, enemy events, vegetable pickup and the maze-border timer tick;
 - non-blocking first-entry audio handling so browser audio locks cannot pause the HUD entry sequence.
 
 The current branch does not implement yet:
@@ -154,9 +154,11 @@ Responsibilities:
 - play the rotating-gate effect when a push is accepted;
 - restart the player-entry jingle when a HUD life starts travelling into the maze;
 - restart the death-sequence effect when the player touches a skull;
+- restart the maze-border timer tick sound from an independent fixed-tick cadence;
+- reset the timer sound cadence when a board attempt restarts;
 - avoid scattering raw sound keys and browser audio-unlock details through the scene.
 
-Stackable short effects are allowed for pickups and gates. Entry and death effects are restarted instead of stacked, matching the Godot helper's intent.
+Stackable short effects are allowed for pickups and gates. Entry, death, enemy-exit warning and timer effects are restarted instead of stacked, matching the Godot helper's intent.
 
 ### `src/game/layout/screenLayout.ts`
 
@@ -566,7 +568,7 @@ Responsibilities:
 - detect skull pickups and start the player death sequence;
 - decrement lives and update the HUD life display after death;
 - reset the player movement motor and restart the HUD-to-maze entry animation when reserve lives remain;
-- route player-entry, pickup, gate-rotation and death events to `GameplaySoundPlayer`.
+- route player-entry, pickup, gate-rotation, death, enemy and timer events to `GameplaySoundPlayer`.
 
 The scene orchestrates the current systems, but it should not become a large gameplay class. Later branches should continue moving dedicated logic into focused modules.
 
@@ -587,6 +589,10 @@ public/assets/audio/flower_pickup.wav
 public/assets/audio/collectible_pickup.wav
 public/assets/audio/gate_rotated.wav
 public/assets/audio/death_sequence.wav
+public/assets/audio/enemy_exit.wav
+public/assets/audio/death_enemy.wav
+public/assets/audio/timer.wav
+public/assets/audio/vegetable_pickup.wav
 public/assets/sprites/player/ladybug_spritesheet.png
 public/assets/sprites/player/player_dead_red.png
 public/assets/sprites/player/player_dead_ghost.png
@@ -635,7 +641,9 @@ Current rule:
 - the collectible color cycle is paused while the entry animation is active, matching the Godot flow where gameplay is frozen during the life-entry sequence;
 - the collectible color cycle, gates and player movement are also paused while a heart / letter pickup popup is active;
 - the collectible color cycle, gates, player movement and pickup processing are paused while the player death sequence is active;
-- sound effects are triggered from gameplay events, not from render-frame callbacks;
+- sound effects are triggered from gameplay events or fixed simulation ticks, not from render-frame callbacks;
+- the audible maze-border timer cadence is reset with the visual timer when a board attempt restarts;
+- for level 1, the timer sound cadence matches the visible border cadence: one restart every 9 fixed simulation ticks;
 - the first HUD-to-maze entry does not wait for browser audio unlock; if the sound manager is still locked, the entry jingle is skipped instead of played late.
 
 This separation is important because earlier web projects showed that frame-rate-dependent movement can behave differently on mobile browsers and desktop browsers.

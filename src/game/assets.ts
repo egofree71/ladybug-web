@@ -34,6 +34,7 @@ export const ASSET_KEYS = {
   deathSequenceSound: 'death-sequence-sound',
   enemyDeathSound: 'enemy-death-sound',
   enemyExitWarningSound: 'enemy-exit-warning-sound',
+  timerStepSound: 'timer-step-sound',
   vegetablePickupSound: 'vegetable-pickup-sound',
 } as const;
 

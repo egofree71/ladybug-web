@@ -37,6 +37,7 @@ import { installLadyBugDebugConsole, type LadyBugDebugCommandResult, type LadyBu
  * gameplay speed.
  */
 export class GameScene extends Phaser.Scene {
+  private readonly levelNumber = 1;
   private readonly arcadeClock = new FixedArcadeClock();
   private readonly collectibleColorCycle = new CollectibleColorCycle();
   private readonly scoreState = new ScoreState();
@@ -166,6 +167,7 @@ export class GameScene extends Phaser.Scene {
     this.load.audio(ASSET_KEYS.deathSequenceSound, assetUrl('assets/audio/death_sequence.wav'));
     this.load.audio(ASSET_KEYS.enemyDeathSound, assetUrl('assets/audio/death_enemy.wav'));
     this.load.audio(ASSET_KEYS.enemyExitWarningSound, assetUrl('assets/audio/enemy_exit.wav'));
+    this.load.audio(ASSET_KEYS.timerStepSound, assetUrl('assets/audio/timer.wav'));
     this.load.audio(ASSET_KEYS.vegetablePickupSound, assetUrl('assets/audio/vegetable_pickup.wav'));
   }
 
@@ -181,6 +183,7 @@ export class GameScene extends Phaser.Scene {
     this.isPlayerDeathSequenceActive = false;
     this.isWaitingForAudioUnlockBeforeEntry = false;
     this.soundPlayer = new GameplaySoundPlayer(this);
+    this.soundPlayer.resetTimerStepCadence(this.levelNumber);
 
     const mazeGrid = MazeGrid.fromDataFile(this.cache.json.get(ASSET_KEYS.mazeLayout));
 
@@ -189,11 +192,11 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setDepth(0);
 
-    this.borderTimer = createMazeBorderTimer(this, 1);
+    this.borderTimer = createMazeBorderTimer(this, this.levelNumber);
     this.collectibleField = createLevelOneCollectibles(this, this.collectibleColorCycle.currentColor);
     this.gateField = createRotatingGates(this);
-    this.enemies = createEnemies(this, mazeGrid, this.gateField.gateSystem, 1);
-    this.vegetableBonus = createVegetableBonus(this, 1);
+    this.enemies = createEnemies(this, mazeGrid, this.gateField.gateSystem, this.levelNumber);
+    this.vegetableBonus = createVegetableBonus(this, this.levelNumber);
 
     this.pickupPopupView = new CollectiblePickupPopupView(this);
     this.player = new PlayerView(this);
@@ -232,6 +235,7 @@ export class GameScene extends Phaser.Scene {
 
     this.gateField?.gateSystem.advanceOneTick();
     this.advanceBorderTimerOneTick();
+    this.soundPlayer?.advanceTimerSoundOneTick(this.levelNumber);
     this.advanceVegetableBonusOneTick();
     this.advanceEnemiesOneTick();
     this.advancePlayerOneTick();
@@ -460,6 +464,7 @@ export class GameScene extends Phaser.Scene {
     this.vegetableBonus?.resetRuntimeState(this.enemies?.enemySystem);
     this.playerMovement?.resetToStartCell();
     this.borderTimer?.resetTimer();
+    this.soundPlayer?.resetTimerStepCadence(this.levelNumber);
     this.startPlayerEntryAnimation();
   }
 
