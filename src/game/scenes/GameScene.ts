@@ -44,6 +44,8 @@ export class GameScene extends Phaser.Scene {
   private player?: PlayerView;
   private playerInput?: PlayerInputState;
   private playerMovement?: PlayerMovementMotor;
+  private livesRemaining = 3;
+  private isPlayerDeathSequenceActive = false;
 
   public constructor() {
     super('GameScene');
@@ -75,6 +77,16 @@ export class GameScene extends Phaser.Scene {
       frameHeight: 64,
     });
 
+    this.load.spritesheet(ASSET_KEYS.playerDeathRed, assetUrl('assets/sprites/player/player_dead_red.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.playerDeathGhost, assetUrl('assets/sprites/player/player_dead_ghost.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
     this.load.spritesheet(ASSET_KEYS.hudArcadeFont26, assetUrl('assets/fonts/hud_arcade_font_26.png'), {
       frameWidth: 26,
       frameHeight: 28,
@@ -99,6 +111,8 @@ export class GameScene extends Phaser.Scene {
     this.heartMultiplierState.reset();
     this.wordProgressState.reset();
     this.pickupPopupState.clear();
+    this.livesRemaining = 3;
+    this.isPlayerDeathSequenceActive = false;
 
     const mazeGrid = MazeGrid.fromDataFile(this.cache.json.get(ASSET_KEYS.mazeLayout));
 
@@ -120,6 +134,7 @@ export class GameScene extends Phaser.Scene {
       PLAYER_LAYOUT.startCell,
     );
     this.hud = createHud(this);
+    this.hud.setLives(this.livesRemaining);
     this.syncHudFromGameState();
     this.startPlayerEntryAnimation();
   }
@@ -131,6 +146,11 @@ export class GameScene extends Phaser.Scene {
   private runOneSimulationTick(): void {
     if (this.hud?.isLifeEntryAnimationActive) {
       this.hud.advanceLifeEntryAnimationOneTick();
+      return;
+    }
+
+    if (this.isPlayerDeathSequenceActive) {
+      this.advancePlayerDeathOneTick();
       return;
     }
 
@@ -164,11 +184,20 @@ export class GameScene extends Phaser.Scene {
     const pickups = consumeCollectiblesAlongPlayerStep(stepResult, this.collectibleField);
     for (const pickup of pickups) {
       this.applyCollectiblePickup(pickup);
+
+      if (this.isPlayerDeathSequenceActive) {
+        break;
+      }
     }
   }
 
   private applyCollectiblePickup(pickup: CollectiblePickupResult): void {
-    if (!pickup.consumed || pickup.kind === COLLECTIBLE_KIND.skull) {
+    if (!pickup.consumed) {
+      return;
+    }
+
+    if (pickup.kind === COLLECTIBLE_KIND.skull) {
+      this.startPlayerDeathFromSkull();
       return;
     }
 
@@ -200,6 +229,44 @@ export class GameScene extends Phaser.Scene {
     if (this.shouldShowPickupPopup(pickup) && scoreCalculation.hasScore) {
       this.startPickupPopup(pickup.cell, scoreCalculation);
     }
+  }
+
+
+
+  private startPlayerDeathFromSkull(): void {
+    if (this.isPlayerDeathSequenceActive) {
+      return;
+    }
+
+    this.pickupPopupState.clear();
+    this.pickupPopupView?.clear();
+    this.collectibleField?.clearSkulls();
+
+    this.livesRemaining = Math.max(0, this.livesRemaining - 1);
+    this.hud?.setCurrentLifeInMaze(false);
+    this.hud?.setLives(this.livesRemaining);
+
+    this.isPlayerDeathSequenceActive = true;
+    this.player?.startDeathSequence();
+  }
+
+  private advancePlayerDeathOneTick(): void {
+    const completed = this.player?.advanceDeathSequenceOneTick() ?? true;
+
+    if (!completed) {
+      return;
+    }
+
+    this.isPlayerDeathSequenceActive = false;
+    this.arcadeClock.reset();
+
+    if (this.livesRemaining <= 0) {
+      this.player?.hideAfterDeathSequence();
+      return;
+    }
+
+    this.playerMovement?.resetToStartCell();
+    this.startPlayerEntryAnimation();
   }
 
   private shouldShowPickupPopup(pickup: CollectiblePickupResult): boolean {

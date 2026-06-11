@@ -10,6 +10,8 @@ export const ASSET_KEYS = {
   borderTimerTiles: 'border-timer-tiles',
   rotatingGate: 'rotating-gate',
   ladybug: 'ladybug',
+  playerDeathRed: 'player-death-red',
+  playerDeathGhost: 'player-death-ghost',
   collectibles: 'collectibles',
   collectibleLayout: 'collectible-layout',
   mazeLayout: 'maze-layout',

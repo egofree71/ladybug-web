@@ -44,7 +44,8 @@ interface RuntimeCollectible {
  */
 export interface CollectibleFieldView {
   applyColorCycle(color: CollectibleColor): void;
-  tryConsumeProgressCollectible(cell: CollectibleCell): CollectiblePickupResult;
+  tryConsumeCollectible(cell: CollectibleCell): CollectiblePickupResult;
+  clearSkulls(): void;
 }
 
 class PhaserCollectibleFieldView implements CollectibleFieldView {
@@ -71,18 +72,12 @@ class PhaserCollectibleFieldView implements CollectibleFieldView {
     }
   }
 
-  /**
-   * Consumes a flower, heart or letter at the given logical cell.
-   *
-   * Skulls deliberately remain untouched in this branch. Player death from skull
-   * contact will be implemented separately, so for now they are visual hazards
-   * with no gameplay consequence.
-   */
-  public tryConsumeProgressCollectible(cell: CollectibleCell): CollectiblePickupResult {
+  /** Consumes one collectible at the given logical cell, including skull hazards. */
+  public tryConsumeCollectible(cell: CollectibleCell): CollectiblePickupResult {
     const key = cellKey(cell);
     const runtimeCollectible = this.collectiblesByCell.get(key);
 
-    if (!runtimeCollectible || runtimeCollectible.kind === COLLECTIBLE_KIND.skull) {
+    if (!runtimeCollectible) {
       return NO_COLLECTIBLE_PICKUP;
     }
 
@@ -99,6 +94,21 @@ class PhaserCollectibleFieldView implements CollectibleFieldView {
       color: runtimeCollectible.color,
       letter: runtimeCollectible.letter,
     };
+  }
+
+  /** Removes every remaining skull after one skull has killed the player. */
+  public clearSkulls(): void {
+    for (const [key, runtimeCollectible] of this.collectiblesByCell.entries()) {
+      if (runtimeCollectible.kind !== COLLECTIBLE_KIND.skull) {
+        continue;
+      }
+
+      this.collectiblesByCell.delete(key);
+
+      for (const sprite of runtimeCollectible.sprites) {
+        sprite.destroy();
+      }
+    }
   }
 }
 

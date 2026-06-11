@@ -14,7 +14,7 @@ import {
 } from './playerView';
 
 const HUD_GREY_TINT = 0xc8c8c8;
-const TOTAL_LIVES = 3;
+const INITIAL_LIVES = 3;
 const LIFE_ICON_FRAME = 1;
 const MAX_VISIBLE_LIFE_ICONS = 5;
 const LIFE_ENTRY_DEPTH = 300;
@@ -31,6 +31,8 @@ export interface HudView {
   readonly isLifeEntryAnimationActive: boolean;
   startLifeEntryAnimation(targetCenter: Phaser.Math.Vector2, onFinished: PlayerEntryFinishedCallback): boolean;
   advanceLifeEntryAnimationOneTick(): boolean;
+  setLives(lives: number): void;
+  setCurrentLifeInMaze(isInMaze: boolean): void;
   setScore(score: number): void;
   setMultiplierStep(multiplierStep: number): void;
   setWordProgress(wordProgress: WordProgressState): void;
@@ -46,6 +48,7 @@ class PhaserHudView implements HudView {
   private lifeEntryHiddenSourceIconIndex = -1;
   private lifeEntryFinishedCallback?: PlayerEntryFinishedCallback;
   private currentLifeInMaze = true;
+  private lives = INITIAL_LIVES;
   private specialWordText?: Phaser.GameObjects.Container;
   private extraWordText?: Phaser.GameObjects.Container;
   private multiplierText?: Phaser.GameObjects.Container;
@@ -146,7 +149,7 @@ class PhaserHudView implements HudView {
   ): boolean {
     this.cancelLifeEntryAnimation();
 
-    const totalLives = TOTAL_LIVES;
+    const totalLives = this.lives;
     if (totalLives <= 0 || this.lifeIcons.length === 0) {
       return false;
     }
@@ -221,14 +224,19 @@ class PhaserHudView implements HudView {
     }
   }
 
-  private setCurrentLifeInMaze(isInMaze: boolean): void {
+  public setCurrentLifeInMaze(isInMaze: boolean): void {
     this.currentLifeInMaze = isInMaze;
+    this.updateLifeIconDisplay();
+  }
+
+  public setLives(lives: number): void {
+    this.lives = Phaser.Math.Clamp(Math.floor(lives), 0, MAX_VISIBLE_LIFE_ICONS);
     this.updateLifeIconDisplay();
   }
 
   private updateLifeIconDisplay(): void {
     const visibleLifeCount = Phaser.Math.Clamp(
-      this.currentLifeInMaze ? TOTAL_LIVES - 1 : TOTAL_LIVES,
+      this.currentLifeInMaze ? this.lives - 1 : this.lives,
       0,
       MAX_VISIBLE_LIFE_ICONS,
     );

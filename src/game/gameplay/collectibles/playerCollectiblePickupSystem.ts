@@ -54,7 +54,7 @@ function tryConsumeCollectibleAtExactAnchor(
     return NO_COLLECTIBLE_PICKUP;
   }
 
-  return collectibleField.tryConsumeProgressCollectible(cell);
+  return collectibleField.tryConsumeCollectible(cell);
 }
 
 function tryConsumeCollectibleOnAnchorCrossing(
@@ -68,7 +68,7 @@ function tryConsumeCollectibleOnAnchorCrossing(
     return NO_COLLECTIBLE_PICKUP;
   }
 
-  return collectibleField.tryConsumeProgressCollectible(currentCell);
+  return collectibleField.tryConsumeCollectible(currentCell);
 }
 
 function crossedAnchor(segment: PlayerMovementSegment, currentAnchor: Vector2i): boolean {

@@ -11,6 +11,7 @@ import { type Vector2i, VEC2 } from '../gameplay/math/vector2';
 export const PLAYER_LAYOUT = {
   startCell: { x: 5, y: 8 },
   cellSizePx: PLAYFIELD_COORDS.cellSizeArcadePx * PLAYFIELD_COORDS.renderScale,
+  startArcadePixelPos: logicalCellToArcadePixel({ x: 5, y: 8 }),
   gameplayAnchorPx: {
     x: PLAYFIELD_COORDS.gameplayAnchorArcade.x * PLAYFIELD_COORDS.renderScale,
     y: PLAYFIELD_COORDS.gameplayAnchorArcade.y * PLAYFIELD_COORDS.renderScale,
