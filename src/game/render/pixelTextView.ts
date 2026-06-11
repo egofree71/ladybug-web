@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 
-const FONT_CHARACTERS = ' ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-*/:=!?.';
+const FONT_CHARACTERS = ' ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-*/:!?.';
 
 const HUD_FONT_BY_SIZE = {
   16: {
@@ -52,6 +52,29 @@ function getStartX(x: number, width: number, align: PixelTextAlign): number {
   return x;
 }
 
+
+function createEqualsGlyph(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  frameWidth: number,
+  frameHeight: number,
+  tint: number,
+): Phaser.GameObjects.Container {
+  const container = scene.add.container(0, 0);
+  const barWidth = Math.max(8, frameWidth - Math.round(frameWidth * 0.42));
+  const barHeight = Math.max(2, Math.round(frameHeight * 0.11));
+  const barX = x + Math.round((frameWidth - barWidth) / 2);
+  const upperY = y + Math.round(frameHeight * 0.34);
+  const lowerY = y + Math.round(frameHeight * 0.58);
+
+  const upperBar = scene.add.rectangle(barX, upperY, barWidth, barHeight, tint).setOrigin(0, 0);
+  const lowerBar = scene.add.rectangle(barX, lowerY, barWidth, barHeight, tint).setOrigin(0, 0);
+
+  container.add([upperBar, lowerBar]);
+  return container;
+}
+
 /**
  * Renders HUD labels with a generated bitmap font instead of Phaser Text.
  *
@@ -74,13 +97,20 @@ export function createPixelText(scene: Phaser.Scene, options: PixelTextOptions):
       return;
     }
 
+    const tint = options.glyphTints?.[characterIndex] ?? options.tint;
+
+    if (character === '=') {
+      const equalsGlyph = createEqualsGlyph(scene, startX + characterIndex * font.frameWidth, startY, font.frameWidth, font.frameHeight, tint);
+      container.add(equalsGlyph);
+      return;
+    }
+
     const frame = FONT_CHARACTERS.indexOf(character);
     if (frame < 0) {
       console.warn(`[LadyBugWeb] Missing HUD bitmap glyph: "${character}"`);
       return;
     }
 
-    const tint = options.glyphTints?.[characterIndex] ?? options.tint;
     const glyph = scene.add
       .image(startX + characterIndex * font.frameWidth, startY, font.textureKey, frame)
       .setOrigin(0, 0)
