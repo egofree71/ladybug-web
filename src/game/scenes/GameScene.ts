@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS, assetUrl } from '../assets';
+import { GameplaySoundPlayer } from '../audio/gameplaySoundPlayer';
 import { MAZE } from '../layout/screenLayout';
 import { CollectibleColorCycle } from '../gameplay/collectibles/collectibleColorCycle';
 import { COLLECTIBLE_COLOR, COLLECTIBLE_KIND, type CollectibleCell, type CollectiblePickupResult } from '../gameplay/collectibles/collectibleTypes';
@@ -44,6 +45,8 @@ export class GameScene extends Phaser.Scene {
   private player?: PlayerView;
   private playerInput?: PlayerInputState;
   private playerMovement?: PlayerMovementMotor;
+  private soundPlayer?: GameplaySoundPlayer;
+  private isWaitingForAudioUnlockBeforeEntry = false;
   private livesRemaining = 3;
   private isPlayerDeathSequenceActive = false;
 
@@ -101,6 +104,12 @@ export class GameScene extends Phaser.Scene {
       frameWidth: 16,
       frameHeight: 20,
     });
+
+    this.load.audio(ASSET_KEYS.enterMazeSound, assetUrl('assets/audio/enter_maze.wav'));
+    this.load.audio(ASSET_KEYS.flowerPickupSound, assetUrl('assets/audio/flower_pickup.wav'));
+    this.load.audio(ASSET_KEYS.collectiblePickupSound, assetUrl('assets/audio/collectible_pickup.wav'));
+    this.load.audio(ASSET_KEYS.gateRotatedSound, assetUrl('assets/audio/gate_rotated.wav'));
+    this.load.audio(ASSET_KEYS.deathSequenceSound, assetUrl('assets/audio/death_sequence.wav'));
   }
 
   public create(): void {
@@ -113,6 +122,8 @@ export class GameScene extends Phaser.Scene {
     this.pickupPopupState.clear();
     this.livesRemaining = 3;
     this.isPlayerDeathSequenceActive = false;
+    this.isWaitingForAudioUnlockBeforeEntry = false;
+    this.soundPlayer = new GameplaySoundPlayer(this);
 
     const mazeGrid = MazeGrid.fromDataFile(this.cache.json.get(ASSET_KEYS.mazeLayout));
 
@@ -136,7 +147,7 @@ export class GameScene extends Phaser.Scene {
     this.hud = createHud(this);
     this.hud.setLives(this.livesRemaining);
     this.syncHudFromGameState();
-    this.startPlayerEntryAnimation();
+    this.startPlayerEntryAnimation({ waitForAudioUnlock: true });
   }
 
   public override update(_time: number, delta: number): void {
@@ -144,6 +155,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private runOneSimulationTick(): void {
+    if (this.isWaitingForAudioUnlockBeforeEntry) {
+      return;
+    }
+
     if (this.hud?.isLifeEntryAnimationActive) {
       this.hud.advanceLifeEntryAnimationOneTick();
       return;
@@ -177,6 +192,8 @@ export class GameScene extends Phaser.Scene {
     const stepResult = this.playerMovement.step(this.playerInput.readPressedDirection());
     this.player?.applyMovementStep(stepResult);
 
+    this.playGateSoundsForAcceptedPushes();
+
     if (!this.collectibleField) {
       return;
     }
@@ -191,6 +208,14 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private playGateSoundsForAcceptedPushes(): void {
+    const pushedGateCount = this.gateField?.gateSystem.consumePushedGateCount() ?? 0;
+
+    for (let i = 0; i < pushedGateCount; i++) {
+      this.soundPlayer?.playGateRotated();
+    }
+  }
+
   private applyCollectiblePickup(pickup: CollectiblePickupResult): void {
     if (!pickup.consumed) {
       return;
@@ -200,6 +225,8 @@ export class GameScene extends Phaser.Scene {
       this.startPlayerDeathFromSkull();
       return;
     }
+
+    this.soundPlayer?.playForCollectible(pickup.kind);
 
     const scoreCalculation = calculateCollectibleScore(
       pickup.kind,
@@ -245,6 +272,8 @@ export class GameScene extends Phaser.Scene {
     this.livesRemaining = Math.max(0, this.livesRemaining - 1);
     this.hud?.setCurrentLifeInMaze(false);
     this.hud?.setLives(this.livesRemaining);
+
+    this.soundPlayer?.playDeathSequenceStart();
 
     this.isPlayerDeathSequenceActive = true;
     this.player?.startDeathSequence();
@@ -302,14 +331,35 @@ export class GameScene extends Phaser.Scene {
     this.hud?.setWordProgress(this.wordProgressState);
   }
 
-  private startPlayerEntryAnimation(): void {
+  private startPlayerEntryAnimation(options: { readonly waitForAudioUnlock?: boolean } = {}): void {
     this.player?.hide();
+
+    // Browsers may keep the audio context locked until the first user gesture.
+    // When that happens on the initial boot, delaying the entry animation keeps
+    // the jingle aligned with the HUD life leaving the reserve area instead of
+    // playing late after the player has already reached the maze. Later death
+    // respawns do not wait because the audio context is already unlocked.
+    if (options.waitForAudioUnlock && this.soundPlayer?.isAudioLocked()) {
+      this.isWaitingForAudioUnlockBeforeEntry = true;
+      this.soundPlayer.onceUnlocked(() => {
+        this.isWaitingForAudioUnlockBeforeEntry = false;
+        this.arcadeClock.reset();
+        this.startPlayerEntryAnimation();
+      });
+      return;
+    }
+
+    this.isWaitingForAudioUnlockBeforeEntry = false;
 
     const start = getPlayerStartCenter();
     const animationStarted = this.hud?.startLifeEntryAnimation(
       new Phaser.Math.Vector2(start.x, start.y),
       () => this.player?.showAtStart(),
     );
+
+    if (animationStarted) {
+      this.soundPlayer?.playEnterMaze();
+    }
 
     if (!animationStarted) {
       this.player?.showAtStart();

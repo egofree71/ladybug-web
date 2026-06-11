@@ -18,6 +18,11 @@ export const ASSET_KEYS = {
   hudArcadeFont26: 'hud-arcade-font-26',
   hudArcadeFont28: 'hud-arcade-font-28',
   hudArcadeFont16: 'hud-arcade-font-16',
+  enterMazeSound: 'enter-maze-sound',
+  flowerPickupSound: 'flower-pickup-sound',
+  collectiblePickupSound: 'collectible-pickup-sound',
+  gateRotatedSound: 'gate-rotated-sound',
+  deathSequenceSound: 'death-sequence-sound',
 } as const;
 
 export function assetUrl(relativePath: string): string {

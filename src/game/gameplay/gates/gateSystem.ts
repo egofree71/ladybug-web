@@ -9,6 +9,8 @@ export class GateSystem {
 
   public readonly gates: readonly RotatingGateRuntimeState[];
 
+  private pushedGateCountSinceLastConsume = 0;
+
   public constructor(definitions: readonly GateRuntimeDefinition[]) {
     const gates: RotatingGateRuntimeState[] = [];
 
@@ -41,7 +43,20 @@ export class GateSystem {
   }
 
   public tryPush(gateId: number, moveDir: Vector2i, contactHalf: GateContactHalf): boolean {
-    return this.gatesById.get(gateId)?.tryBeginPush(moveDir, contactHalf) ?? false;
+    const pushed = this.gatesById.get(gateId)?.tryBeginPush(moveDir, contactHalf) ?? false;
+
+    if (pushed) {
+      this.pushedGateCountSinceLastConsume += 1;
+    }
+
+    return pushed;
+  }
+
+  /** Returns and clears the number of gates pushed since the previous query. */
+  public consumePushedGateCount(): number {
+    const count = this.pushedGateCountSinceLastConsume;
+    this.pushedGateCountSinceLastConsume = 0;
+    return count;
   }
 
   public advanceOneTick(): void {

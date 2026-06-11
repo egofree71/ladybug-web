@@ -37,7 +37,8 @@ The current branch implements:
 - skull removal and clearing of remaining skulls after player death starts;
 - the red shrink / ghost death sequence ported from Godot;
 - life count updates after death;
-- respawn from the HUD life icons when reserve lives remain.
+- respawn from the HUD life icons when reserve lives remain;
+- gameplay sound effects for player entry, flower pickup, heart / letter pickup, gate rotation and player death.
 
 The current branch does not implement yet:
 
@@ -76,7 +77,8 @@ Important points taken from Godot:
 - when one skull kills the player, all remaining skull icons are cleared;
 - the red shrink and ghost-zigzag death animation is tick-based and uses the same frame durations as Godot;
 - the current collectible field and gate orientations are preserved after losing a life;
-- the player movement motor is reset to the start cell, then the next reserve life enters from the HUD.
+- the player movement motor is reset to the start cell, then the next reserve life enters from the HUD;
+- gameplay sounds are owned by a central helper in Godot, with separate effects for flower pickup, heart / letter pickup, gate rotation, player entry and death sequence start.
 
 This coordinate-space split matters: the HUD and the playfield do not use the same origin in Godot.
 
@@ -136,6 +138,23 @@ The `assetUrl()` function uses `import.meta.env.BASE_URL`, which keeps asset pat
 ```text
 /ladybug-web/
 ```
+
+The file also centralizes the current gameplay sound keys so scene code does not use raw asset names.
+
+### `src/game/audio/gameplaySoundPlayer.ts`
+
+Centralized non-positional sound facade for gameplay effects.
+
+Responsibilities:
+
+- play the flower pickup effect;
+- play the heart / letter pickup effect;
+- play the rotating-gate effect when a push is accepted;
+- restart the player-entry jingle when a HUD life starts travelling into the maze;
+- restart the death-sequence effect when the player touches a skull;
+- avoid scattering raw sound keys and browser audio-unlock details through the scene.
+
+Stackable short effects are allowed for pickups and gates. Entry and death effects are restarted instead of stacked, matching the Godot helper's intent.
 
 ### `src/game/layout/screenLayout.ts`
 
@@ -369,7 +388,8 @@ Responsibilities:
 - detect whether a gate blocks one movement axis;
 - accept player pushes when possible;
 - toggle the logical gate state immediately on accepted push;
-- keep the short visual turning state for fixed simulation ticks.
+- keep the short visual turning state for fixed simulation ticks;
+- expose accepted push counts to the scene so the gate sound can play exactly when a push succeeds.
 
 ### `src/game/gameplay/player/`
 
@@ -526,7 +546,7 @@ Current main Phaser scene.
 
 Responsibilities:
 
-- preload the required assets;
+- preload the required visual and audio assets;
 - display the maze background;
 - create the border timer preview;
 - create the collectible field;
@@ -542,7 +562,8 @@ Responsibilities:
 - start the heart / letter pickup popup and pause normal simulation until it completes;
 - detect skull pickups and start the player death sequence;
 - decrement lives and update the HUD life display after death;
-- reset the player movement motor and restart the HUD-to-maze entry animation when reserve lives remain.
+- reset the player movement motor and restart the HUD-to-maze entry animation when reserve lives remain;
+- route player-entry, pickup, gate-rotation and death events to `GameplaySoundPlayer`.
 
 The scene orchestrates the current systems, but it should not become a large gameplay class. Later branches should continue moving dedicated logic into focused modules.
 
@@ -558,6 +579,11 @@ public/assets/fonts/hud_arcade_font_16.png
 public/assets/fonts/hud_arcade_font_26.png
 public/assets/fonts/hud_arcade_font_28.png
 public/assets/images/maze_background.png
+public/assets/audio/enter_maze.wav
+public/assets/audio/flower_pickup.wav
+public/assets/audio/collectible_pickup.wav
+public/assets/audio/gate_rotated.wav
+public/assets/audio/death_sequence.wav
 public/assets/sprites/player/ladybug_spritesheet.png
 public/assets/sprites/player/player_dead_red.png
 public/assets/sprites/player/player_dead_ghost.png
@@ -605,7 +631,8 @@ Current rule:
 - gate turning timers are advanced by fixed simulation ticks;
 - the collectible color cycle is paused while the entry animation is active, matching the Godot flow where gameplay is frozen during the life-entry sequence;
 - the collectible color cycle, gates and player movement are also paused while a heart / letter pickup popup is active;
-- the collectible color cycle, gates, player movement and pickup processing are paused while the player death sequence is active.
+- the collectible color cycle, gates, player movement and pickup processing are paused while the player death sequence is active;
+- sound effects are triggered from gameplay events, not from render-frame callbacks.
 
 This separation is important because earlier web projects showed that frame-rate-dependent movement can behave differently on mobile browsers and desktop browsers.
 
@@ -659,5 +686,6 @@ A few rules to keep for the next steps:
 - keep scoring rules in `src/game/gameplay/scoring/`;
 - keep word-progress rules in `src/game/gameplay/words/`;
 - keep browser-frame timing separate from gameplay timing;
+- keep gameplay sound routing in `src/game/audio/`;
 - avoid mixing rendering, game logic and dynamic state in the same file;
 - prefer short branches with clear commits.
