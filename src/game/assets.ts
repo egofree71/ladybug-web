@@ -36,6 +36,7 @@ export const ASSET_KEYS = {
   enemyExitWarningSound: 'enemy-exit-warning-sound',
   timerStepSound: 'timer-step-sound',
   vegetablePickupSound: 'vegetable-pickup-sound',
+  endLevelSound: 'end-level-sound',
 } as const;
 
 export function assetUrl(relativePath: string): string {

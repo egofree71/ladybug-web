@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 
-const FONT_CHARACTERS = ' ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-*/:!?.';
+const FONT_CHARACTERS = ' ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-*/:=!?.';
 
 const HUD_FONT_BY_SIZE = {
   16: {

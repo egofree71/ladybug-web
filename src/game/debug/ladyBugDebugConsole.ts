@@ -30,6 +30,9 @@ export interface LadyBugDebugStatus {
   readonly playerEntryActive: boolean;
   readonly playerDeathActive: boolean;
   readonly pickupPopupActive: boolean;
+  readonly endLevelFreezeActive: boolean;
+  readonly levelTransitionActive: boolean;
+  readonly queuedLevelNumber?: number;
   readonly hasEnemyReleaseCandidate: boolean;
   readonly allEnemiesInMaze: boolean;
   readonly enemies: readonly LadyBugDebugEnemyStatus[];
@@ -73,7 +76,7 @@ const HELP_LINES = [
   'ladyBugDebug.status() - inspect lives, score and enemy states',
   'ladyBugDebug.releaseNextEnemy() - finish the current border-timer cycle and release the next waiting enemy',
   'ladyBugDebug.releaseAllEnemies() - repeat releaseNextEnemy until no enemy is waiting',
-  'ladyBugDebug.nextLevel() - skip to the next level without playing a transition screen',
+  'ladyBugDebug.nextLevel() - start the between-level transition for the next level',
   'ladyBugDebug.runtime() - return raw scene/runtime objects for deeper manual inspection',
 ] as const;
 

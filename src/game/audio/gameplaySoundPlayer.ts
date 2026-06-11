@@ -9,6 +9,7 @@ const ENEMY_DEATH_VOLUME = 0.85;
 const ENEMY_EXIT_WARNING_VOLUME = 0.85;
 const TIMER_STEP_VOLUME = 0.8;
 const VEGETABLE_PICKUP_VOLUME = 0.85;
+const END_LEVEL_VOLUME = 0.85;
 
 /**
  * Centralized non-positional sound facade for the current arcade board.
@@ -120,6 +121,11 @@ export class GameplaySoundPlayer {
   /** Short effect used when the central vegetable bonus is consumed. */
   public playVegetablePickup(): void {
     this.playStackable(ASSET_KEYS.vegetablePickupSound, VEGETABLE_PICKUP_VOLUME);
+  }
+
+  /** Restarted jingle used when a cleared board enters the between-level flow. */
+  public playEndLevel(): void {
+    this.restart(ASSET_KEYS.endLevelSound, END_LEVEL_VOLUME);
   }
 
   private playStackable(key: string, volume: number): void {

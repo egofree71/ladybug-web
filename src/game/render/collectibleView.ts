@@ -17,6 +17,7 @@ import {
   type CollectibleColor,
   type CollectiblePickupResult,
   type CollectiblePlacement,
+  type CollectibleSpawnPlan,
 } from '../gameplay/collectibles/collectibleTypes';
 
 // In the Godot Collectible scene, the heart center overlay is positioned
@@ -180,6 +181,7 @@ export function createLevelCollectibles(
   scene: Phaser.Scene,
   levelNumber: number,
   initialColor: CollectibleColor = COLLECTIBLE_COLOR.blue,
+  spawnPlan?: CollectibleSpawnPlan,
 ): CollectibleFieldView {
   const layout = scene.cache.json.get(ASSET_KEYS.collectibleLayout) as CollectibleLayoutData | undefined;
 
@@ -188,7 +190,7 @@ export function createLevelCollectibles(
     return new PhaserCollectibleFieldView(new Map());
   }
 
-  const specialPlacements = generateSpecialCollectibleSpawnPlan(levelNumber).placements;
+  const specialPlacements = (spawnPlan ?? generateSpecialCollectibleSpawnPlan(levelNumber)).placements;
   const specialByCell = new Map<string, CollectiblePlacement>();
   const collectiblesByCell = new Map<string, RuntimeCollectible>();
 

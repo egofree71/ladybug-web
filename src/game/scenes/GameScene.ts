@@ -3,8 +3,9 @@ import { ASSET_KEYS, assetUrl } from '../assets';
 import { GameplaySoundPlayer } from '../audio/gameplaySoundPlayer';
 import { MAZE } from '../layout/screenLayout';
 import { CollectibleColorCycle } from '../gameplay/collectibles/collectibleColorCycle';
-import { COLLECTIBLE_COLOR, COLLECTIBLE_KIND, type CollectibleCell, type CollectiblePickupResult } from '../gameplay/collectibles/collectibleTypes';
+import { COLLECTIBLE_COLOR, COLLECTIBLE_KIND, type CollectibleCell, type CollectiblePickupResult, type CollectibleSpawnPlan } from '../gameplay/collectibles/collectibleTypes';
 import { CollectiblePickupPopupState } from '../gameplay/collectibles/collectiblePickupPopupState';
+import { generateSpecialCollectibleSpawnPlan } from '../gameplay/collectibles/collectibleSpawnPlanner';
 import { consumeCollectiblesAlongPlayerStep } from '../gameplay/collectibles/playerCollectiblePickupSystem';
 import { calculateCollectibleScore } from '../gameplay/scoring/collectibleScoreService';
 import { HeartMultiplierState } from '../gameplay/scoring/heartMultiplierState';
@@ -24,6 +25,7 @@ import { getPlayerStartCenter } from '../layout/playerLayout';
 import { PlayerView } from '../render/playerView';
 import { createEnemies, type EnemyFieldView } from '../render/enemyView';
 import { createVegetableBonus, type VegetableBonusFieldView } from '../render/vegetableBonusView';
+import { createLevelTransitionView, type LevelTransitionView } from '../render/levelTransitionView';
 import { enemyPlayerCollisionActive } from '../gameplay/enemies/enemyMovementAi';
 import { MONSTER_DIR, type MonsterDir } from '../gameplay/enemies/monsterDirection';
 import {
@@ -36,7 +38,11 @@ import {
 
 interface LevelSetupOptions {
   readonly useHudEntryAnimation: boolean;
+  readonly spawnPlan?: CollectibleSpawnPlan;
 }
+
+const END_LEVEL_FREEZE_DURATION_TICKS = 120;
+const LEVEL_TRANSITION_SCREEN_DURATION_TICKS = 120;
 
 /**
  * First gameplay scene for the Phaser remake.
@@ -61,6 +67,7 @@ export class GameScene extends Phaser.Scene {
   private vegetableBonus?: VegetableBonusFieldView;
   private hud?: HudView;
   private pickupPopupView?: CollectiblePickupPopupView;
+  private levelTransitionView?: LevelTransitionView;
   private player?: PlayerView;
   private mazeGrid?: MazeGrid;
   private playerInput?: PlayerInputState;
@@ -70,6 +77,12 @@ export class GameScene extends Phaser.Scene {
   private livesRemaining = 3;
   private isPlayerDeathSequenceActive = false;
   private isLevelAdvancePending = false;
+  private isEndLevelFreezeActive = false;
+  private endLevelFreezeTicksRemaining = 0;
+  private isLevelTransitionScreenActive = false;
+  private levelTransitionTicksRemaining = 0;
+  private queuedNextLevelNumber = 0;
+  private queuedNextLevelSpawnPlan?: CollectibleSpawnPlan;
   private uninstallDebugConsole?: () => void;
 
   public constructor() {
@@ -181,6 +194,7 @@ export class GameScene extends Phaser.Scene {
     this.load.audio(ASSET_KEYS.enemyExitWarningSound, assetUrl('assets/audio/enemy_exit.wav'));
     this.load.audio(ASSET_KEYS.timerStepSound, assetUrl('assets/audio/timer.wav'));
     this.load.audio(ASSET_KEYS.vegetablePickupSound, assetUrl('assets/audio/vegetable_pickup.wav'));
+    this.load.audio(ASSET_KEYS.endLevelSound, assetUrl('assets/audio/end_level.wav'));
   }
 
   public create(): void {
@@ -195,6 +209,12 @@ export class GameScene extends Phaser.Scene {
     this.livesRemaining = 3;
     this.isPlayerDeathSequenceActive = false;
     this.isLevelAdvancePending = false;
+    this.isEndLevelFreezeActive = false;
+    this.endLevelFreezeTicksRemaining = 0;
+    this.isLevelTransitionScreenActive = false;
+    this.levelTransitionTicksRemaining = 0;
+    this.queuedNextLevelNumber = 0;
+    this.queuedNextLevelSpawnPlan = undefined;
     this.isWaitingForAudioUnlockBeforeEntry = false;
     this.soundPlayer = new GameplaySoundPlayer(this);
     this.mazeGrid = MazeGrid.fromDataFile(this.cache.json.get(ASSET_KEYS.mazeLayout));
@@ -206,6 +226,7 @@ export class GameScene extends Phaser.Scene {
 
     this.borderTimer = createMazeBorderTimer(this, this.currentLevelNumber);
     this.pickupPopupView = new CollectiblePickupPopupView(this);
+    this.levelTransitionView = createLevelTransitionView(this);
     this.player = new PlayerView(this);
     this.playerInput = new PlayerInputState(this);
     this.hud = createHud(this);
@@ -228,6 +249,11 @@ export class GameScene extends Phaser.Scene {
     this.pickupPopupView?.clear();
     this.isPlayerDeathSequenceActive = false;
     this.isLevelAdvancePending = false;
+    this.isEndLevelFreezeActive = false;
+    this.endLevelFreezeTicksRemaining = 0;
+    this.isLevelTransitionScreenActive = false;
+    this.levelTransitionTicksRemaining = 0;
+    this.levelTransitionView?.hide();
 
     this.borderTimer?.configureForLevel(this.currentLevelNumber);
     this.soundPlayer?.resetTimerStepCadence(this.currentLevelNumber);
@@ -236,6 +262,7 @@ export class GameScene extends Phaser.Scene {
       this,
       this.currentLevelNumber,
       this.collectibleColorCycle.currentColor,
+      options.spawnPlan,
     );
     this.gateField = createRotatingGates(this);
     this.enemies = createEnemies(this, this.mazeGrid, this.gateField.gateSystem, this.currentLevelNumber);
@@ -287,12 +314,27 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    if (this.isEndLevelFreezeActive) {
+      this.advanceEndLevelFreezeOneTick();
+      return;
+    }
+
+    if (this.isLevelTransitionScreenActive) {
+      this.advanceLevelTransitionScreenOneTick();
+      return;
+    }
+
     this.gateField?.gateSystem.advanceOneTick();
     this.advanceBorderTimerOneTick();
     this.soundPlayer?.advanceTimerSoundOneTick(this.currentLevelNumber);
     this.advanceVegetableBonusOneTick();
     this.advanceEnemiesOneTick();
     this.advancePlayerOneTick();
+
+    if (this.isEndLevelFreezeActive || this.isLevelTransitionScreenActive) {
+      return;
+    }
+
     this.tryConsumeVegetableBonus();
     this.checkPlayerEnemyCollisions();
 
@@ -455,8 +497,82 @@ export class GameScene extends Phaser.Scene {
   }
 
   private advanceToNextLevel(): void {
-    this.currentLevelNumber += 1;
-    this.setupCurrentLevel({ useHudEntryAnimation: false });
+    this.startLevelTransitionScreen(this.currentLevelNumber + 1);
+  }
+
+  private startLevelTransitionScreen(nextLevelNumber: number): void {
+    if (this.isEndLevelFreezeActive || this.isLevelTransitionScreenActive) {
+      return;
+    }
+
+    this.isLevelAdvancePending = false;
+    this.queuedNextLevelNumber = Math.max(1, Math.floor(nextLevelNumber));
+    this.queuedNextLevelSpawnPlan = generateSpecialCollectibleSpawnPlan(this.queuedNextLevelNumber);
+    this.endLevelFreezeTicksRemaining = END_LEVEL_FREEZE_DURATION_TICKS;
+    this.isEndLevelFreezeActive = true;
+    this.arcadeClock.reset();
+    this.pickupPopupState.clear();
+    this.pickupPopupView?.clear();
+    this.player?.show();
+    this.soundPlayer?.playEndLevel();
+  }
+
+  private advanceEndLevelFreezeOneTick(): void {
+    this.endLevelFreezeTicksRemaining -= 1;
+
+    if (this.endLevelFreezeTicksRemaining > 0) {
+      return;
+    }
+
+    this.isEndLevelFreezeActive = false;
+    this.endLevelFreezeTicksRemaining = 0;
+    this.showLevelTransitionScreen();
+  }
+
+  private showLevelTransitionScreen(): void {
+    if (this.isLevelTransitionScreenActive) {
+      return;
+    }
+
+    if (this.queuedNextLevelNumber <= 0) {
+      this.queuedNextLevelNumber = this.currentLevelNumber + 1;
+    }
+
+    if (!this.queuedNextLevelSpawnPlan) {
+      this.queuedNextLevelSpawnPlan = generateSpecialCollectibleSpawnPlan(this.queuedNextLevelNumber);
+    }
+
+    this.isLevelTransitionScreenActive = true;
+    this.levelTransitionTicksRemaining = LEVEL_TRANSITION_SCREEN_DURATION_TICKS;
+    this.heartMultiplierState.reset();
+    this.hud?.setMultiplierStep(this.heartMultiplierState.step);
+    this.player?.hide();
+    this.levelTransitionView?.showForUpcomingLevel(this.queuedNextLevelNumber, this.queuedNextLevelSpawnPlan);
+  }
+
+  private advanceLevelTransitionScreenOneTick(): void {
+    this.levelTransitionTicksRemaining -= 1;
+
+    if (this.levelTransitionTicksRemaining > 0) {
+      return;
+    }
+
+    this.completeLevelTransition();
+  }
+
+  private completeLevelTransition(): void {
+    const nextLevelNumber = this.queuedNextLevelNumber > 0
+      ? this.queuedNextLevelNumber
+      : this.currentLevelNumber + 1;
+    const spawnPlan = this.queuedNextLevelSpawnPlan ?? generateSpecialCollectibleSpawnPlan(nextLevelNumber);
+
+    this.levelTransitionView?.hide();
+    this.isLevelTransitionScreenActive = false;
+    this.levelTransitionTicksRemaining = 0;
+    this.currentLevelNumber = nextLevelNumber;
+    this.queuedNextLevelNumber = 0;
+    this.queuedNextLevelSpawnPlan = undefined;
+    this.setupCurrentLevel({ useHudEntryAnimation: false, spawnPlan });
   }
 
 
@@ -604,6 +720,10 @@ export class GameScene extends Phaser.Scene {
   private debugReleaseNextEnemy(): LadyBugDebugCommandResult {
     const statusBeforeRelease = this.createDebugStatus();
 
+    if (this.isEndLevelFreezeActive || this.isLevelTransitionScreenActive) {
+      return this.createDebugCommandResult(false, 'Cannot release enemies during the level transition flow.', false, statusBeforeRelease);
+    }
+
     if (!this.borderTimer || !this.enemies) {
       return this.createDebugCommandResult(false, 'The game scene is not ready yet.', false);
     }
@@ -676,14 +796,21 @@ export class GameScene extends Phaser.Scene {
       );
     }
 
+    if (this.isEndLevelFreezeActive || this.isLevelTransitionScreenActive) {
+      return this.createDebugLevelCommandResult(
+        false,
+        'A level transition is already active.',
+        previousLevelNumber,
+      );
+    }
+
     this.pickupPopupState.clear();
     this.pickupPopupView?.clear();
-    this.currentLevelNumber += 1;
-    this.setupCurrentLevel({ useHudEntryAnimation: false });
+    this.startLevelTransitionScreen(this.currentLevelNumber + 1);
 
     return this.createDebugLevelCommandResult(
       true,
-      `Skipped from level ${previousLevelNumber} to level ${this.currentLevelNumber}.`,
+      `Started transition from level ${previousLevelNumber} to level ${this.currentLevelNumber + 1}.`,
       previousLevelNumber,
     );
   }
@@ -748,6 +875,9 @@ export class GameScene extends Phaser.Scene {
       playerEntryActive: this.hud?.isLifeEntryAnimationActive ?? false,
       playerDeathActive: this.isPlayerDeathSequenceActive,
       pickupPopupActive: this.pickupPopupState.isActive,
+      endLevelFreezeActive: this.isEndLevelFreezeActive,
+      levelTransitionActive: this.isLevelTransitionScreenActive,
+      queuedLevelNumber: this.queuedNextLevelNumber > 0 ? this.queuedNextLevelNumber : undefined,
       hasEnemyReleaseCandidate: this.enemies?.hasReleaseCandidate ?? false,
       allEnemiesInMaze: enemySystem?.areAllEnemiesInMaze ?? false,
       enemies: enemySystem?.monsters.map((monster): LadyBugDebugEnemyStatus => ({

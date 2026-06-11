@@ -2,7 +2,7 @@
 
 This document describes the current state of the early Phaser web remake of Lady Bug.
 
-The current implementation focuses on the level-1 game screen, the first collectible systems, the initial player entry sequence, the first playable player movement pass, pickup/scoring for non-lethal collectibles, skull contact, the player death sequence, and respawn from the HUD. Enemies are intentionally left for later work.
+The current implementation focuses on the playable Phaser remake loop: collectibles, player movement, gates, enemy release, enemy movement, skull/death handling, vegetable bonus, scoring, lives, respawn and direct level progression with an arcade-style PART transition screen.
 
 ## Current Scope
 
@@ -10,13 +10,13 @@ The current branch implements:
 
 - the Phaser canvas and scaling setup;
 - the maze background;
-- the outer border that will later act as the enemy-release timer;
+- the animated outer border enemy-release timer;
 - the 20 green rotating gates, displayed in their initial state;
 - the top HUD: `SPECIAL`, `EXTRA`, `x2 x3 x5`;
 - the bottom HUD: remaining lives and a temporary score;
 - crisp bitmap-based HUD text rendering;
 - base flower collectibles;
-- level-1 special collectibles:
+- level-dependent special collectibles:
   - hearts;
   - letters;
   - skulls;
@@ -38,20 +38,25 @@ The current branch implements:
 - the red shrink / ghost death sequence ported from Godot;
 - life count updates after death;
 - respawn from the HUD life icons when reserve lives remain;
+- enemy spawning and release from the central lair;
+- first playable enemy movement and enemy/player collision;
+- enemy death when an enemy touches a skull;
+- central vegetable bonus and temporary enemy freeze;
+- level completion after all flowers, hearts and letters are consumed;
+- two-step between-level flow: frozen cleared board, then PART transition preview screen;
+- direct placement of the player at the start cell after a between-level transition;
+- debug console commands for enemy release and level-transition testing;
 - gameplay sound effects for player entry, flower pickup, heart / letter pickup, gate rotation, player death, enemy events, vegetable pickup and the maze-border timer tick;
 - non-blocking first-entry audio handling so browser audio locks cannot pause the HUD entry sequence.
 
 The current branch does not implement yet:
 
-- level completion / level transitions after clearing all progress collectibles;
 - completed `SPECIAL` / `EXTRA` awards;
-- enemies and enemy-triggered player death;
-- enemy spawning;
-- the real border timer animation;
-- level transitions;
-- a complete game-over screen after the last life is lost.
+- intro / title screen;
+- complete game-over screen after the last life is lost;
+- arcade-perfect refinements for every enemy movement edge case.
 
-The goal is now to validate the first playable loop around movement, gate interaction, collectible pickup, scoring, lethal skull contact, HUD life updates and respawn before adding enemies.
+The goal is now to validate the first playable multi-level loop before adding title/game-over flow and the remaining award rules.
 
 ## Reference Used
 
@@ -500,6 +505,21 @@ Responsibilities:
 
 The file does not own movement rules. It receives arcade-pixel movement results from the player movement motor and turns them into screen coordinates. The death sequence state is semantic and tick-based; the view only turns it into spritesheet frames and screen offsets.
 
+### `src/game/render/levelTransitionView.ts`
+
+Arcade-style PART screen shown between two playable boards.
+
+Responsibilities:
+
+- draw a black panel inside the purple maze frame while leaving the HUD visible;
+- display the upcoming `PART` number;
+- display the upcoming vegetable icon, bonus score and vegetable name;
+- display the upcoming skull count;
+- display the three upcoming letters in transition-preview order;
+- display the three heart icons;
+- show `GOOD LUCK`;
+- use the same pre-generated collectible spawn plan that will be consumed by the next board, so the transition letters match the following level.
+
 ### `src/game/render/collectiblePickupPopupView.ts`
 
 Temporary view shown when the player collects a heart or a letter.
@@ -558,6 +578,7 @@ Responsibilities:
 - create the rotating gates and their runtime state;
 - create the HUD;
 - create the player view, input state and movement motor;
+- create the level transition view;
 - start the HUD-to-maze player entry animation;
 - start the initial entry animation immediately even if browser audio is locked, so the game never appears frozen before the HUD life movement;
 - run the fixed-step clock from Phaser's variable `update()` callback;
@@ -594,6 +615,7 @@ public/assets/audio/enemy_exit.wav
 public/assets/audio/death_enemy.wav
 public/assets/audio/timer.wav
 public/assets/audio/vegetable_pickup.wav
+public/assets/audio/end_level.wav
 public/assets/sprites/player/ladybug_spritesheet.png
 public/assets/sprites/player/player_dead_red.png
 public/assets/sprites/player/player_dead_ghost.png
@@ -642,6 +664,7 @@ Current rule:
 - the collectible color cycle is paused while the entry animation is active, matching the Godot flow where gameplay is frozen during the life-entry sequence;
 - the collectible color cycle, gates and player movement are also paused while a heart / letter pickup popup is active;
 - the collectible color cycle, gates, player movement and pickup processing are paused while the player death sequence is active;
+- after a board clear, gameplay is paused for a 120-tick frozen-board end-level phase, then for a 120-tick PART transition screen;
 - sound effects are triggered from gameplay events or fixed simulation ticks, not from render-frame callbacks;
 - the audible maze-border timer cadence is reset with the visual timer when a board attempt restarts;
 - for level 1, the timer sound cadence matches the visible border cadence: one restart every 9 fixed simulation ticks;
@@ -674,12 +697,13 @@ To avoid deploying technical documents when testing the game:
 
 ## Possible Next Steps
 
-After this branch is validated, the next branches could be:
+After this branch is validated, the next branches could focus on:
 
 ```text
-feature/border-timer-animation
-feature/enemy-spawn
-feature/enemy-movement
+feature/special-extra-awards
+feature/game-over-screen
+feature/title-screen
+feature/enemy-movement-refinements
 ```
 
 The exact order may change, but the idea is to keep branches small, each with a clear goal.
