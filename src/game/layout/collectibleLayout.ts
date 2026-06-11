@@ -23,6 +23,24 @@ export const COLLECTIBLE_LAYOUT = {
   depth: 15,
 } as const;
 
+
+/** Score / multiplier popup placement tuned as a compact sprite-like overlay. */
+export const COLLECTIBLE_PICKUP_POPUP_LAYOUT = {
+  fontSizePx: 16,
+  depth: 100,
+
+  // The popup container is placed at LogicalCellToScenePosition(cell). The base
+  // score stays centered in the upper part of the collectible cell.
+  scoreLineCenterX: 18,
+  scoreLineCenterY: 17,
+
+  // The multiplier is intentionally anchored farther right and lower than the
+  // score, matching the arcade-style layout where it sits in the bottom-right
+  // corner of the temporary popup area.
+  multiplierLineRightX: 42,
+  multiplierLineCenterY: 43,
+} as const;
+
 /** Sprite frame mapping from the Godot Collectible.cs view. */
 export const COLLECTIBLE_FRAMES = {
   skull: 0,

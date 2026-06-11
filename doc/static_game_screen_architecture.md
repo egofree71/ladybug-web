@@ -2,7 +2,7 @@
 
 This document describes the current state of the early Phaser web remake of Lady Bug.
 
-The current implementation focuses on rendering the level-1 game screen and the first collectible systems. It is still a visual/gameplay foundation branch: player movement, collisions, enemies and real scoring are intentionally left for later work.
+The current implementation focuses on the level-1 game screen, the first collectible systems, the initial player entry sequence, the first playable player movement pass, pickup/scoring for non-lethal collectibles, skull contact, the player death sequence, and respawn from the HUD. Enemies are intentionally left for later work.
 
 ## Current Scope
 
@@ -21,23 +21,37 @@ The current branch implements:
   - letters;
   - skulls;
 - a global color cycle for hearts and letters;
-- a fixed-step gameplay timing helper that is independent from the browser display refresh rate.
+- a fixed-step gameplay timing helper that is independent from the browser display refresh rate;
+- the initial HUD-to-maze player entry animation for level 1;
+- a static in-maze player sprite shown at the level-start position after the entry animation finishes;
+- keyboard-driven player movement advanced from fixed simulation ticks;
+- static maze collision checks based on `maze.json`;
+- arcade-style turn windows and assisted turns ported from the Godot movement motor;
+- interactive rotating gates with logical blocking state and short turning visuals;
+- collectible pickup for flowers, hearts and letters;
+- the temporary heart / letter pickup score popup;
+- score updates using the current heart multiplier;
+- blue-heart multiplier progression;
+- SPECIAL / EXTRA word progress from red and yellow letters;
+- skull contact detection;
+- skull removal and clearing of remaining skulls after player death starts;
+- the red shrink / ghost death sequence ported from Godot;
+- life count updates after death;
+- respawn from the HUD life icons when reserve lives remain;
+- gameplay sound effects for player entry, flower pickup, heart / letter pickup, gate rotation and player death;
+- first-entry audio-unlock handling so the initial HUD entry jingle stays synchronized with the player leaving the HUD.
 
 The current branch does not implement yet:
 
-- player movement;
-- player/maze collisions;
-- collectible pickup;
-- score updates;
-- `SPECIAL` / `EXTRA` word completion;
-- multiplier activation from blue hearts;
-- enemies;
+- level completion / level transitions after clearing all progress collectibles;
+- completed `SPECIAL` / `EXTRA` awards;
+- enemies and enemy-triggered player death;
 - enemy spawning;
-- interactive gate rotation;
 - the real border timer animation;
-- level transitions.
+- level transitions;
+- a complete game-over screen after the last life is lost.
 
-The goal is to validate the visual frame and the first timing-dependent collectible behavior before adding movement, collision and enemy logic.
+The goal is now to validate the first playable loop around movement, gate interaction, collectible pickup, scoring, lethal skull contact, HUD life updates and respawn before adding enemies.
 
 ## Reference Used
 
@@ -49,7 +63,24 @@ Important points taken from Godot:
 - the `Level` scene is offset by `Main.cs` with `LevelScenePosition = (27, -1)`;
 - the maze, gates and collectibles belong to the `Level` scene, so they receive this offset;
 - the HUD is rendered in a `CanvasLayer`, so it stays in screen coordinates and does not receive the `Level` scene offset;
-- the collectible color cycle is separate from the maze-border / enemy-release timer.
+- the collectible color cycle is separate from the maze-border / enemy-release timer;
+- the player start cell is `Vector2i(5, 8)` in `Level.tscn`;
+- the HUD life-entry animation is owned by the HUD, while the final in-maze player sprite uses the level coordinate system;
+- player movement uses integer arcade-pixel coordinates and one-pixel committed movement segments;
+- static walls and rotating gates are evaluated separately, matching the Godot playfield collision split;
+- gates toggle their logical blocking axis immediately when pushed, then briefly display a diagonal turning frame;
+- collectible pickup follows the exact movement segments returned by the player motor so assisted turns do not skip collectibles;
+- flowers, hearts, letters and skulls are removed from the board when collected or touched;
+- heart and letter pickups start a 30-tick popup state, hide the player sprite, and freeze normal board simulation until the popup completes;
+- scores are calculated from the collectible kind, current color, and current blue-heart multiplier;
+- blue hearts advance the multiplier only after the blue heart itself has been scored;
+- touching a skull starts the player death sequence;
+- when one skull kills the player, all remaining skull icons are cleared;
+- the red shrink and ghost-zigzag death animation is tick-based and uses the same frame durations as Godot;
+- the current collectible field and gate orientations are preserved after losing a life;
+- the player movement motor is reset to the start cell, then the next reserve life enters from the HUD;
+- gameplay sounds are owned by a central helper in Godot, with separate effects for flower pickup, heart / letter pickup, gate rotation, player entry and death sequence start;
+- browser audio may be locked until the first user gesture, so the initial entry animation waits for audio unlock instead of letting the jingle play late.
 
 This coordinate-space split matters: the HUD and the playfield do not use the same origin in Godot.
 
@@ -110,6 +141,23 @@ The `assetUrl()` function uses `import.meta.env.BASE_URL`, which keeps asset pat
 /ladybug-web/
 ```
 
+The file also centralizes the current gameplay sound keys so scene code does not use raw asset names.
+
+### `src/game/audio/gameplaySoundPlayer.ts`
+
+Centralized non-positional sound facade for gameplay effects.
+
+Responsibilities:
+
+- play the flower pickup effect;
+- play the heart / letter pickup effect;
+- play the rotating-gate effect when a push is accepted;
+- restart the player-entry jingle when a HUD life starts travelling into the maze;
+- restart the death-sequence effect when the player touches a skull;
+- avoid scattering raw sound keys and browser audio-unlock details through the scene.
+
+Stackable short effects are allowed for pickups and gates. Entry and death effects are restarted instead of stacked, matching the Godot helper's intent.
+
 ### `src/game/layout/screenLayout.ts`
 
 Central file for placement constants.
@@ -141,9 +189,34 @@ Each gate contains:
 - an identifier;
 - an `x` position;
 - a `y` position;
+- a logical pivot copied from `Level.tscn`;
 - an orientation: `horizontal` or `vertical`.
 
-For now, this data is only used to display the gates. Later, it can also become the basis for the logical gate state and collision rules.
+The same data is now used both by the renderer and by the gate runtime state.
+
+### `src/game/layout/playfieldCoordinates.ts`
+
+Central coordinate converter for gameplay actors.
+
+Responsibilities:
+
+- mirror `LevelCoordinateSystem.cs`;
+- convert logical cells to arcade-pixel anchors;
+- convert arcade-pixel positions back to logical cells;
+- convert gate pivots to arcade pixels;
+- convert arcade-pixel positions and deltas to Phaser screen pixels.
+
+Gameplay movement must use these conversions instead of measuring from the visible maze image, because Godot places actors relative to the Maze node position, not the visible image top-left.
+
+### `src/game/layout/playerLayout.ts`
+
+Contains the player placement helpers copied from the Godot remake.
+
+Responsibilities:
+
+- define the level-1 start cell;
+- return the HUD-entry target position;
+- convert the player movement motor arcade-pixel state into a rendered sprite center using the current render-offset direction.
 
 ### `src/game/layout/collectibleLayout.ts`
 
@@ -227,6 +300,115 @@ blue -> red -> yellow -> blue
 
 This cycle is intentionally independent from the maze-border / enemy-release timer.
 
+### `src/game/gameplay/collectibles/collectiblePickupPopupState.ts`
+
+Tracks the temporary heart / letter score popup state.
+
+Responsibilities:
+
+- store the collected cell, base score, multiplier and final score delta;
+- count the 30 fixed simulation ticks used by the pickup pause;
+- tell the scene when the popup has just completed.
+
+The state does not render anything. Rendering is handled by `collectiblePickupPopupView.ts`.
+
+### `src/game/gameplay/collectibles/playerCollectiblePickupSystem.ts`
+
+Detects which collectible cells the player actually crossed during one movement result.
+
+Responsibilities:
+
+- inspect the snapped position reported by the movement motor;
+- inspect every one-pixel movement segment;
+- consume a collectible only when the player crosses a logical cell anchor;
+- preserve assisted-turn behavior where one simulation tick may contain an alignment correction and a requested-direction step.
+
+This mirrors the Godot player controller. Checking only the final player cell would miss some pickups during tight assisted turns.
+
+### `src/game/gameplay/scoring/`
+
+Contains the first score-related semantic state.
+
+Responsibilities:
+
+- `ScoreState` stores the current score;
+- `HeartMultiplierState` stores the x2 / x3 / x5 blue-heart progression;
+- `collectibleScoreService.ts` calculates the score awarded by flowers, hearts and letters.
+
+Current scoring rules:
+
+- flower: 10 points times the current multiplier;
+- blue heart / letter: 100 points times the current multiplier;
+- yellow heart / letter: 300 points times the current multiplier;
+- red heart / letter: 800 points times the current multiplier.
+
+A blue heart is scored with the multiplier that was active before pickup, then it advances the multiplier step for future collectibles.
+
+### `src/game/gameplay/words/wordProgressState.ts`
+
+Tracks SPECIAL and EXTRA progress.
+
+Responsibilities:
+
+- red letters can activate matching letters in SPECIAL;
+- yellow letters can activate matching letters in EXTRA;
+- blue letters are score-only;
+- already-active letters do not change word progress again.
+
+Completed-word awards and level transitions are not implemented yet.
+
+### `src/game/gameplay/maze/mazeGrid.ts`
+
+Runtime representation of `maze.json`.
+
+Responsibilities:
+
+- load the 11 x 11 logical maze;
+- expose per-cell movement checks;
+- evaluate one arcade-pixel step with a caller-provided collision lead;
+- report whether the step stays in the current cell, crosses into another cell, or hits a fixed wall.
+
+### `src/game/gameplay/playfield/playfieldCollision.ts`
+
+Combines static maze walls with the dynamic rotating-gate overlay.
+
+Responsibilities:
+
+- evaluate fixed-wall collisions with the player static collision probe;
+- evaluate rotating-gate contact with the shorter gate-contact probe;
+- detect gate blocks both at the direct probe and when crossing a logical cell boundary;
+- report whether a step is allowed, blocked by a fixed wall, or blocked by a pushable gate.
+
+### `src/game/gameplay/gates/`
+
+Runtime rotating-gate model.
+
+Responsibilities:
+
+- build gate states from `gateLayout.ts`;
+- look up gates by id or pivot;
+- detect whether a gate blocks one movement axis;
+- accept player pushes when possible;
+- toggle the logical gate state immediately on accepted push;
+- keep the short visual turning state for fixed simulation ticks;
+- expose accepted push counts to the scene so the gate sound can play exactly when a push succeeds.
+
+### `src/game/gameplay/player/`
+
+Player input, movement and death-sequence subsystem.
+
+Responsibilities:
+
+- keep last-pressed-wins keyboard input state;
+- move the player in integer arcade pixels;
+- preserve short-tap movement context;
+- apply rail snapping when starting or resuming movement;
+- generate turn-window maps from `maze.json`;
+- apply arcade-style turn windows and assisted turns;
+- evaluate each committed pixel segment against fixed walls and rotating gates;
+- push gates through the same movement step when contact is valid;
+- keep the tick-based death sequence state for red frames, ghost frames and ghost path offsets.
+
 ### `src/game/gameplay/timing/fixedArcadeClock.ts`
 
 Fixed-step timing helper for gameplay systems.
@@ -252,11 +434,12 @@ View responsible for rendering gates.
 Responsibilities:
 
 - iterate over `GATE_DEFINITIONS`;
-- choose the spritesheet frame based on the gate orientation;
-- create Phaser sprites;
-- set their display depth.
+- create the runtime `GateSystem`;
+- create Phaser sprites for all gate ids;
+- choose the stable or diagonal spritesheet frame from the current runtime state;
+- resynchronize sprites after fixed simulation ticks.
 
-This file does not contain rotation logic yet. That is intentional: interactive gate rotation will be handled in a separate branch.
+The gameplay decision still lives in `src/game/gameplay/gates/`; this view only reflects that state visually.
 
 ### `src/game/render/mazeBorderTimerView.ts`
 
@@ -290,10 +473,42 @@ Responsibilities:
 - display `SPECIAL`;
 - display `EXTRA`;
 - display `x2 x3 x5`;
-- display two reserve life icons;
-- display a temporary score.
+- display reserve life icons;
+- display and update the current score;
+- display and update the x2 / x3 / x5 multiplier indicators;
+- display and update SPECIAL / EXTRA letter progress;
+- own the temporary HUD-to-maze life-entry sprite.
 
-The HUD is still mostly static. Dynamic colors for `SPECIAL` and `EXTRA`, multiplier activation and real score updates will be implemented later through a real game state.
+The HUD starts the travelling ladybug from the rightmost available life icon, then leaves only reserve lives visible while that temporary sprite moves into the maze. It is still a view layer: scoring, word progress and multiplier state live in gameplay classes, then the scene pushes the updated values to the HUD.
+
+### `src/game/render/playerView.ts`
+
+View responsible for the in-maze player sprite, the death sprite, and the entry animation frame setup.
+
+Responsibilities:
+
+- create the hidden in-maze player sprite at the level-start position;
+- show the player after the HUD entry animation finishes;
+- define the entry movement animations used by the temporary HUD sprite;
+- apply movement-motor positions to the rendered sprite;
+- switch and flip the sprite animation according to the current facing direction;
+- start and advance the red shrink / ghost death sprite sequence;
+- hide all player visuals after the final life is lost.
+
+The file does not own movement rules. It receives arcade-pixel movement results from the player movement motor and turns them into screen coordinates. The death sequence state is semantic and tick-based; the view only turns it into spritesheet frames and screen offsets.
+
+### `src/game/render/collectiblePickupPopupView.ts`
+
+Temporary view shown when the player collects a heart or a letter.
+
+Responsibilities:
+
+- place the popup at the logical cell anchor where the collectible was consumed;
+- render the base score on the upper line;
+- render the current multiplier in the lower-right popup area when greater than x1;
+- use bitmap glyphs with a small shadow instead of antialiased browser text.
+
+The player sprite is hidden and normal board simulation is frozen while the popup is active.
 
 ### `src/game/render/collectibleView.ts`
 
@@ -304,16 +519,21 @@ Responsibilities:
 - read `collectibles_layout.json` from the Phaser JSON cache;
 - draw all base flower cells;
 - replace selected flowers with level-1 hearts, letters and skulls;
+- keep semantic runtime state for each active collectible;
 - keep references to sprites affected by the color cycle;
-- update heart and letter colors when the cycle changes.
+- update heart and letter colors when the cycle changes;
+- consume flowers, hearts, letters and skulls when the player crosses their logical cell anchor;
+- clear all remaining skulls after a skull starts the player death sequence.
 
 The view currently exposes a small `CollectibleFieldView` facade with:
 
 ```ts
 applyColorCycle(color)
+tryConsumeCollectible(cell)
+clearSkulls()
 ```
 
-This keeps the color-cycle update separate from Phaser rendering details.
+This keeps color-cycle and pickup state separate from the Phaser scene orchestration code while still avoiding any inference from sprite frames.
 
 The heart collectible is drawn in two parts:
 
@@ -328,14 +548,25 @@ Current main Phaser scene.
 
 Responsibilities:
 
-- preload the required assets;
+- preload the required visual and audio assets;
 - display the maze background;
 - create the border timer preview;
 - create the collectible field;
-- create the rotating gates;
+- create the rotating gates and their runtime state;
 - create the HUD;
+- create the player view, input state and movement motor;
+- start the HUD-to-maze player entry animation;
+- delay only the initial entry animation while browser audio is locked, so the entry jingle starts with the HUD life movement;
 - run the fixed-step clock from Phaser's variable `update()` callback;
-- advance the collectible color cycle from fixed simulation ticks.
+- advance the player entry animation from fixed simulation ticks;
+- advance gate timers, collectible colors and player movement from fixed simulation ticks once the entry animation is finished;
+- consume flowers, hearts and letters from the movement result;
+- apply score, multiplier and word-progress consequences to gameplay state and HUD;
+- start the heart / letter pickup popup and pause normal simulation until it completes;
+- detect skull pickups and start the player death sequence;
+- decrement lives and update the HUD life display after death;
+- reset the player movement motor and restart the HUD-to-maze entry animation when reserve lives remain;
+- route player-entry, pickup, gate-rotation and death events to `GameplaySoundPlayer`.
 
 The scene orchestrates the current systems, but it should not become a large gameplay class. Later branches should continue moving dedicated logic into focused modules.
 
@@ -345,11 +576,20 @@ The assets used by the current implementation are in `public/assets`:
 
 ```text
 public/assets/data/collectibles_layout.json
+public/assets/data/maze.json
 public/assets/fonts/PressStart2P-Regular.ttf
+public/assets/fonts/hud_arcade_font_16.png
 public/assets/fonts/hud_arcade_font_26.png
 public/assets/fonts/hud_arcade_font_28.png
 public/assets/images/maze_background.png
+public/assets/audio/enter_maze.wav
+public/assets/audio/flower_pickup.wav
+public/assets/audio/collectible_pickup.wav
+public/assets/audio/gate_rotated.wav
+public/assets/audio/death_sequence.wav
 public/assets/sprites/player/ladybug_spritesheet.png
+public/assets/sprites/player/player_dead_red.png
+public/assets/sprites/player/player_dead_ghost.png
 public/assets/sprites/props/collectibles.png
 public/assets/sprites/props/maze_border_timer_tiles.png
 public/assets/sprites/props/rotating_gate.png
@@ -388,7 +628,15 @@ Current rule:
 - Phaser rendering can run at any browser/display cadence;
 - gameplay timers advance through `FixedArcadeClock`;
 - `FixedArcadeClock` uses elapsed milliseconds and fixed simulation steps;
-- the collectible color cycle is separate from the future border timer / enemy-release cycle.
+- the collectible color cycle is separate from the future border timer / enemy-release cycle;
+- the player entry movement is advanced by the same fixed simulation ticks;
+- player movement is advanced by fixed simulation ticks and one-pixel arcade movement segments;
+- gate turning timers are advanced by fixed simulation ticks;
+- the collectible color cycle is paused while the entry animation is active, matching the Godot flow where gameplay is frozen during the life-entry sequence;
+- the collectible color cycle, gates and player movement are also paused while a heart / letter pickup popup is active;
+- the collectible color cycle, gates, player movement and pickup processing are paused while the player death sequence is active;
+- sound effects are triggered from gameplay events, not from render-frame callbacks;
+- the first HUD-to-maze entry can wait for browser audio unlock, while later respawns start immediately because audio is already available.
 
 This separation is important because earlier web projects showed that frame-rate-dependent movement can behave differently on mobile browsers and desktop browsers.
 
@@ -420,11 +668,6 @@ To avoid deploying technical documents when testing the game:
 After this branch is validated, the next branches could be:
 
 ```text
-feature/player-spawn
-feature/player-grid-movement
-feature/collectible-pickup
-feature/scoring-hud
-feature/gate-rotation
 feature/border-timer-animation
 feature/enemy-spawn
 feature/enemy-movement
@@ -439,9 +682,15 @@ A few rules to keep for the next steps:
 - do not fix positions only by eye from a scaled screenshot;
 - use `?native=1` for pixel-perfect measurements;
 - keep placement constants in `screenLayout.ts`;
-- keep gate data in `gateLayout.ts`;
+- keep gate authoring data in `gateLayout.ts`;
+- keep gate runtime logic in `src/game/gameplay/gates/`;
+- keep player movement logic in `src/game/gameplay/player/`;
 - keep collectible layout constants in `collectibleLayout.ts`;
 - keep collectible rules in `src/game/gameplay/collectibles/`;
+- keep scoring rules in `src/game/gameplay/scoring/`;
+- keep word-progress rules in `src/game/gameplay/words/`;
 - keep browser-frame timing separate from gameplay timing;
+- keep gameplay sound routing in `src/game/audio/`;
+- keep first-boot browser audio-unlock handling explicit, so startup audio does not drift away from the entry animation;
 - avoid mixing rendering, game logic and dynamic state in the same file;
 - prefer short branches with clear commits.

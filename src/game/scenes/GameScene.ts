@@ -1,25 +1,54 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS, assetUrl } from '../assets';
+import { GameplaySoundPlayer } from '../audio/gameplaySoundPlayer';
 import { MAZE } from '../layout/screenLayout';
 import { CollectibleColorCycle } from '../gameplay/collectibles/collectibleColorCycle';
+import { COLLECTIBLE_COLOR, COLLECTIBLE_KIND, type CollectibleCell, type CollectiblePickupResult } from '../gameplay/collectibles/collectibleTypes';
+import { CollectiblePickupPopupState } from '../gameplay/collectibles/collectiblePickupPopupState';
+import { consumeCollectiblesAlongPlayerStep } from '../gameplay/collectibles/playerCollectiblePickupSystem';
+import { calculateCollectibleScore } from '../gameplay/scoring/collectibleScoreService';
+import { HeartMultiplierState } from '../gameplay/scoring/heartMultiplierState';
+import { ScoreState } from '../gameplay/scoring/scoreState';
 import { FixedArcadeClock } from '../gameplay/timing/fixedArcadeClock';
-import { createHud } from '../render/hudView';
+import { WordProgressState } from '../gameplay/words/wordProgressState';
+import { MazeGrid } from '../gameplay/maze/mazeGrid';
+import { PlayerInputState } from '../gameplay/player/playerInputState';
+import { PlayerMovementMotor } from '../gameplay/player/playerMovementMotor';
+import { PLAYER_LAYOUT } from '../layout/playerLayout';
+import { createHud, type HudView } from '../render/hudView';
+import { CollectiblePickupPopupView } from '../render/collectiblePickupPopupView';
 import { createMazeBorderTimer } from '../render/mazeBorderTimerView';
 import { createLevelOneCollectibles, type CollectibleFieldView } from '../render/collectibleView';
-import { createRotatingGates } from '../render/gateView';
+import { createRotatingGates, type GateFieldView } from '../render/gateView';
+import { getPlayerStartCenter } from '../layout/playerLayout';
+import { PlayerView } from '../render/playerView';
 
 /**
- * First playable-screen shell for the Phaser remake.
+ * First gameplay scene for the Phaser remake.
  *
- * The scene now owns a small fixed-step gameplay loop so visual timers can be
- * validated before player movement and enemies are added. The collectible color
- * cycle is advanced from that fixed loop and remains separate from the maze
- * border / enemy-release timer that will be implemented in a later branch.
+ * Player movement, collectible colors, pickups, and gate timers are advanced
+ * from the fixed-step clock. Phaser's display update cadence only decides when
+ * the most recent simulation state is rendered; it does not directly set
+ * gameplay speed.
  */
 export class GameScene extends Phaser.Scene {
   private readonly arcadeClock = new FixedArcadeClock();
   private readonly collectibleColorCycle = new CollectibleColorCycle();
+  private readonly scoreState = new ScoreState();
+  private readonly heartMultiplierState = new HeartMultiplierState();
+  private readonly wordProgressState = new WordProgressState();
+  private readonly pickupPopupState = new CollectiblePickupPopupState();
   private collectibleField?: CollectibleFieldView;
+  private gateField?: GateFieldView;
+  private hud?: HudView;
+  private pickupPopupView?: CollectiblePickupPopupView;
+  private player?: PlayerView;
+  private playerInput?: PlayerInputState;
+  private playerMovement?: PlayerMovementMotor;
+  private soundPlayer?: GameplaySoundPlayer;
+  private isWaitingForAudioUnlockBeforeEntry = false;
+  private livesRemaining = 3;
+  private isPlayerDeathSequenceActive = false;
 
   public constructor() {
     super('GameScene');
@@ -44,8 +73,19 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.load.json(ASSET_KEYS.collectibleLayout, assetUrl('assets/data/collectibles_layout.json'));
+    this.load.json(ASSET_KEYS.mazeLayout, assetUrl('assets/data/maze.json'));
 
     this.load.spritesheet(ASSET_KEYS.ladybug, assetUrl('assets/sprites/player/ladybug_spritesheet.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.playerDeathRed, assetUrl('assets/sprites/player/player_dead_red.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.playerDeathGhost, assetUrl('assets/sprites/player/player_dead_ghost.png'), {
       frameWidth: 64,
       frameHeight: 64,
     });
@@ -59,12 +99,33 @@ export class GameScene extends Phaser.Scene {
       frameWidth: 28,
       frameHeight: 28,
     });
+
+    this.load.spritesheet(ASSET_KEYS.hudArcadeFont16, assetUrl('assets/fonts/hud_arcade_font_16.png'), {
+      frameWidth: 16,
+      frameHeight: 20,
+    });
+
+    this.load.audio(ASSET_KEYS.enterMazeSound, assetUrl('assets/audio/enter_maze.wav'));
+    this.load.audio(ASSET_KEYS.flowerPickupSound, assetUrl('assets/audio/flower_pickup.wav'));
+    this.load.audio(ASSET_KEYS.collectiblePickupSound, assetUrl('assets/audio/collectible_pickup.wav'));
+    this.load.audio(ASSET_KEYS.gateRotatedSound, assetUrl('assets/audio/gate_rotated.wav'));
+    this.load.audio(ASSET_KEYS.deathSequenceSound, assetUrl('assets/audio/death_sequence.wav'));
   }
 
   public create(): void {
     this.cameras.main.setRoundPixels(true);
     this.arcadeClock.reset();
     this.collectibleColorCycle.resetToBlue();
+    this.scoreState.reset();
+    this.heartMultiplierState.reset();
+    this.wordProgressState.reset();
+    this.pickupPopupState.clear();
+    this.livesRemaining = 3;
+    this.isPlayerDeathSequenceActive = false;
+    this.isWaitingForAudioUnlockBeforeEntry = false;
+    this.soundPlayer = new GameplaySoundPlayer(this);
+
+    const mazeGrid = MazeGrid.fromDataFile(this.cache.json.get(ASSET_KEYS.mazeLayout));
 
     this.add
       .image(MAZE.imageX, MAZE.imageY, ASSET_KEYS.mazeBackground)
@@ -73,8 +134,20 @@ export class GameScene extends Phaser.Scene {
 
     createMazeBorderTimer(this);
     this.collectibleField = createLevelOneCollectibles(this, this.collectibleColorCycle.currentColor);
-    createRotatingGates(this);
-    createHud(this);
+    this.gateField = createRotatingGates(this);
+
+    this.pickupPopupView = new CollectiblePickupPopupView(this);
+    this.player = new PlayerView(this);
+    this.playerInput = new PlayerInputState(this);
+    this.playerMovement = new PlayerMovementMotor(
+      mazeGrid,
+      this.gateField.gateSystem,
+      PLAYER_LAYOUT.startCell,
+    );
+    this.hud = createHud(this);
+    this.hud.setLives(this.livesRemaining);
+    this.syncHudFromGameState();
+    this.startPlayerEntryAnimation({ waitForAudioUnlock: true });
   }
 
   public override update(_time: number, delta: number): void {
@@ -82,8 +155,214 @@ export class GameScene extends Phaser.Scene {
   }
 
   private runOneSimulationTick(): void {
+    if (this.isWaitingForAudioUnlockBeforeEntry) {
+      return;
+    }
+
+    if (this.hud?.isLifeEntryAnimationActive) {
+      this.hud.advanceLifeEntryAnimationOneTick();
+      return;
+    }
+
+    if (this.isPlayerDeathSequenceActive) {
+      this.advancePlayerDeathOneTick();
+      return;
+    }
+
+    if (this.pickupPopupState.isActive) {
+      this.advancePickupPopupOneTick();
+      return;
+    }
+
+    this.gateField?.gateSystem.advanceOneTick();
+
     if (this.collectibleColorCycle.advanceOneTick()) {
       this.collectibleField?.applyColorCycle(this.collectibleColorCycle.currentColor);
+    }
+
+    this.advancePlayerOneTick();
+    this.gateField?.syncFromRuntimeState();
+  }
+
+  private advancePlayerOneTick(): void {
+    if (this.playerMovement === undefined || this.playerInput === undefined) {
+      return;
+    }
+
+    const stepResult = this.playerMovement.step(this.playerInput.readPressedDirection());
+    this.player?.applyMovementStep(stepResult);
+
+    this.playGateSoundsForAcceptedPushes();
+
+    if (!this.collectibleField) {
+      return;
+    }
+
+    const pickups = consumeCollectiblesAlongPlayerStep(stepResult, this.collectibleField);
+    for (const pickup of pickups) {
+      this.applyCollectiblePickup(pickup);
+
+      if (this.isPlayerDeathSequenceActive) {
+        break;
+      }
+    }
+  }
+
+  private playGateSoundsForAcceptedPushes(): void {
+    const pushedGateCount = this.gateField?.gateSystem.consumePushedGateCount() ?? 0;
+
+    for (let i = 0; i < pushedGateCount; i++) {
+      this.soundPlayer?.playGateRotated();
+    }
+  }
+
+  private applyCollectiblePickup(pickup: CollectiblePickupResult): void {
+    if (!pickup.consumed) {
+      return;
+    }
+
+    if (pickup.kind === COLLECTIBLE_KIND.skull) {
+      this.startPlayerDeathFromSkull();
+      return;
+    }
+
+    this.soundPlayer?.playForCollectible(pickup.kind);
+
+    const scoreCalculation = calculateCollectibleScore(
+      pickup.kind,
+      pickup.color,
+      this.heartMultiplierState.currentMultiplier,
+    );
+
+    if (scoreCalculation.hasScore) {
+      this.scoreState.addPoints(scoreCalculation.scoreDelta);
+      this.hud?.setScore(this.scoreState.score);
+    }
+
+    if (pickup.kind === COLLECTIBLE_KIND.letter) {
+      const wordResult = this.wordProgressState.tryApplyLetter(pickup.letter, pickup.color);
+
+      if (wordResult.changed) {
+        this.hud?.setWordProgress(this.wordProgressState);
+      }
+    }
+
+    if (pickup.kind === COLLECTIBLE_KIND.heart && pickup.color === COLLECTIBLE_COLOR.blue) {
+      if (this.heartMultiplierState.advanceOneStep()) {
+        this.hud?.setMultiplierStep(this.heartMultiplierState.step);
+      }
+    }
+
+    if (this.shouldShowPickupPopup(pickup) && scoreCalculation.hasScore) {
+      this.startPickupPopup(pickup.cell, scoreCalculation);
+    }
+  }
+
+
+
+  private startPlayerDeathFromSkull(): void {
+    if (this.isPlayerDeathSequenceActive) {
+      return;
+    }
+
+    this.pickupPopupState.clear();
+    this.pickupPopupView?.clear();
+    this.collectibleField?.clearSkulls();
+
+    this.livesRemaining = Math.max(0, this.livesRemaining - 1);
+    this.hud?.setCurrentLifeInMaze(false);
+    this.hud?.setLives(this.livesRemaining);
+
+    this.soundPlayer?.playDeathSequenceStart();
+
+    this.isPlayerDeathSequenceActive = true;
+    this.player?.startDeathSequence();
+  }
+
+  private advancePlayerDeathOneTick(): void {
+    const completed = this.player?.advanceDeathSequenceOneTick() ?? true;
+
+    if (!completed) {
+      return;
+    }
+
+    this.isPlayerDeathSequenceActive = false;
+    this.arcadeClock.reset();
+
+    if (this.livesRemaining <= 0) {
+      this.player?.hideAfterDeathSequence();
+      return;
+    }
+
+    this.playerMovement?.resetToStartCell();
+    this.startPlayerEntryAnimation();
+  }
+
+  private shouldShowPickupPopup(pickup: CollectiblePickupResult): boolean {
+    return pickup.kind === COLLECTIBLE_KIND.heart || pickup.kind === COLLECTIBLE_KIND.letter;
+  }
+
+  private startPickupPopup(
+    cell: CollectibleCell,
+    scoreCalculation: ReturnType<typeof calculateCollectibleScore>,
+  ): void {
+    this.pickupPopupView?.show(cell, scoreCalculation);
+    this.pickupPopupState.start({
+      cell,
+      baseScore: scoreCalculation.baseScore,
+      multiplier: scoreCalculation.multiplier,
+      scoreDelta: scoreCalculation.scoreDelta,
+    });
+    this.player?.hide();
+  }
+
+  private advancePickupPopupOneTick(): void {
+    if (!this.pickupPopupState.advanceOneTick()) {
+      return;
+    }
+
+    this.pickupPopupView?.clear();
+    this.player?.show();
+  }
+
+  private syncHudFromGameState(): void {
+    this.hud?.setScore(this.scoreState.score);
+    this.hud?.setMultiplierStep(this.heartMultiplierState.step);
+    this.hud?.setWordProgress(this.wordProgressState);
+  }
+
+  private startPlayerEntryAnimation(options: { readonly waitForAudioUnlock?: boolean } = {}): void {
+    this.player?.hide();
+
+    // Browsers may keep the audio context locked until the first user gesture.
+    // When that happens on the initial boot, delaying the entry animation keeps
+    // the jingle aligned with the HUD life leaving the reserve area instead of
+    // playing late after the player has already reached the maze. Later death
+    // respawns do not wait because the audio context is already unlocked.
+    if (options.waitForAudioUnlock && this.soundPlayer?.isAudioLocked()) {
+      this.isWaitingForAudioUnlockBeforeEntry = true;
+      this.soundPlayer.onceUnlocked(() => {
+        this.isWaitingForAudioUnlockBeforeEntry = false;
+        this.arcadeClock.reset();
+        this.startPlayerEntryAnimation();
+      });
+      return;
+    }
+
+    this.isWaitingForAudioUnlockBeforeEntry = false;
+
+    const start = getPlayerStartCenter();
+    const animationStarted = this.hud?.startLifeEntryAnimation(
+      new Phaser.Math.Vector2(start.x, start.y),
+      () => this.player?.showAtStart(),
+    );
+
+    if (animationStarted) {
+      this.soundPlayer?.playEnterMaze();
+    }
+
+    if (!animationStarted) {
+      this.player?.showAtStart();
     }
   }
 }
