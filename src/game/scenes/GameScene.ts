@@ -1,19 +1,26 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS, assetUrl } from '../assets';
 import { MAZE } from '../layout/screenLayout';
+import { CollectibleColorCycle } from '../gameplay/collectibles/collectibleColorCycle';
+import { FixedArcadeClock } from '../gameplay/timing/fixedArcadeClock';
 import { createHud } from '../render/hudView';
 import { createMazeBorderTimer } from '../render/mazeBorderTimerView';
-import { createBaseFlowerCollectibles } from '../render/collectibleView';
+import { createLevelOneCollectibles, type CollectibleFieldView } from '../render/collectibleView';
 import { createRotatingGates } from '../render/gateView';
 
 /**
  * First playable-screen shell for the Phaser remake.
  *
- * This scene intentionally renders only the static playfield structure: maze,
- * border timer, rotating gates, and HUD. Player movement, collectibles, scoring,
- * enemies, and real timer behavior are left for focused follow-up branches.
+ * The scene now owns a small fixed-step gameplay loop so visual timers can be
+ * validated before player movement and enemies are added. The collectible color
+ * cycle is advanced from that fixed loop and remains separate from the maze
+ * border / enemy-release timer that will be implemented in a later branch.
  */
 export class GameScene extends Phaser.Scene {
+  private readonly arcadeClock = new FixedArcadeClock();
+  private readonly collectibleColorCycle = new CollectibleColorCycle();
+  private collectibleField?: CollectibleFieldView;
+
   public constructor() {
     super('GameScene');
   }
@@ -56,6 +63,8 @@ export class GameScene extends Phaser.Scene {
 
   public create(): void {
     this.cameras.main.setRoundPixels(true);
+    this.arcadeClock.reset();
+    this.collectibleColorCycle.resetToBlue();
 
     this.add
       .image(MAZE.imageX, MAZE.imageY, ASSET_KEYS.mazeBackground)
@@ -63,8 +72,18 @@ export class GameScene extends Phaser.Scene {
       .setDepth(0);
 
     createMazeBorderTimer(this);
-    createBaseFlowerCollectibles(this);
+    this.collectibleField = createLevelOneCollectibles(this, this.collectibleColorCycle.currentColor);
     createRotatingGates(this);
     createHud(this);
+  }
+
+  public override update(_time: number, delta: number): void {
+    this.arcadeClock.runFrame(delta, () => this.runOneSimulationTick());
+  }
+
+  private runOneSimulationTick(): void {
+    if (this.collectibleColorCycle.advanceOneTick()) {
+      this.collectibleField?.applyColorCycle(this.collectibleColorCycle.currentColor);
+    }
   }
 }

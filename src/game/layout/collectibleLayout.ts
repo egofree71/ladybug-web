@@ -1,17 +1,5 @@
 import { MAZE } from './screenLayout';
-
-/**
- * Logical collectible cell inside the 11x11 Lady Bug board.
- *
- * The Godot remake uses this logical grid to place flowers first, then later
- * replaces selected cells with hearts, letters, and skulls. This web branch only
- * renders the base flowers, but it keeps the same cell model so the later
- * collectible gameplay code can build on it instead of replacing it.
- */
-export interface CollectibleCell {
-  readonly x: number;
-  readonly y: number;
-}
+import type { CollectibleCell } from '../gameplay/collectibles/collectibleTypes';
 
 /** Serialized shape of public/assets/data/collectibles_layout.json. */
 export interface CollectibleLayoutData {
@@ -24,16 +12,44 @@ export interface CollectibleLayoutData {
  * Visual placement constants copied from the Godot collectible scene.
  *
  * Collectibles occupy one 64x64 rendered cell, which corresponds to one 16x16
- * arcade cell scaled by 4 in the Godot remake. In Godot, the collectible node is
- * placed at the gameplay anchor and the sprite has an offset. The final visible
- * top-left corner resolves to the maze image top-left plus one 64px cell step.
+ * arcade cell scaled by 4 in the Godot remake. The sprite frames already include
+ * the scene offsets from Collectible.tscn, so the web renderer can draw each
+ * frame directly at the logical cell top-left.
  */
 export const COLLECTIBLE_LAYOUT = {
   cellSizePx: 64,
   frameWidth: 64,
   frameHeight: 64,
-  flowerFrame: 1,
   depth: 15,
+} as const;
+
+/** Sprite frame mapping from the Godot Collectible.cs view. */
+export const COLLECTIBLE_FRAMES = {
+  skull: 0,
+  flower: 1,
+  heartRing: 2,
+  heartCenter: 3,
+  letters: {
+    E: 4,
+    X: 5,
+    T: 6,
+    R: 7,
+    A: 8,
+    S: 9,
+    P: 10,
+    C: 11,
+    I: 12,
+    L: 13,
+  },
+} as const;
+
+/** Arcade-like colors used by hearts and letters in the Godot remake. */
+export const COLLECTIBLE_TINTS = {
+  red: 0xff5100,
+  yellow: 0xffff00,
+  blue: 0x00aeff,
+  white: 0xffffff,
+  none: 0xffffff,
 } as const;
 
 /**
