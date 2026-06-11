@@ -94,8 +94,8 @@ export class PlayerView {
     this.sprite.setPosition(position.x, position.y);
     this.sprite.setVisible(true);
 
-    if (!equals(stepResult.offsetDirection, this.lastFacing)) {
-      this.playFacingAnimation(stepResult.offsetDirection);
+    if (!equals(stepResult.facingDirection, this.lastFacing)) {
+      this.playFacingAnimation(stepResult.facingDirection);
     }
   }
 

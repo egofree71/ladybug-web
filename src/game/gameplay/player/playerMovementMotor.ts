@@ -31,6 +31,7 @@ export interface PlayerMovementStepResult {
   readonly previousDirection: Vector2i;
   readonly currentDirection: Vector2i;
   readonly offsetDirection: Vector2i;
+  readonly facingDirection: Vector2i;
 }
 
 /**
@@ -48,6 +49,7 @@ export class PlayerMovementMotor {
   private arcadePixelPos = VEC2.zero;
   private currentDir = VEC2.zero;
   private offsetDir = VEC2.up;
+  private facingDir = VEC2.up;
   private latchedRequestedDir = VEC2.zero;
   private turnLaneTarget = VEC2.zero;
   private turnAssistFlags: number = PLAYER_TURN_ASSIST_FLAGS.none;
@@ -81,6 +83,7 @@ export class PlayerMovementMotor {
     this.arcadePixelPos = logicalCellToArcadePixel(this.startCell);
     this.currentDir = VEC2.zero;
     this.offsetDir = VEC2.up;
+    this.facingDir = VEC2.up;
     this.latchedRequestedDir = VEC2.zero;
     this.turnLaneTarget = clone(this.arcadePixelPos);
     this.turnAssistFlags = PLAYER_TURN_ASSIST_FLAGS.none;
@@ -99,6 +102,13 @@ export class PlayerMovementMotor {
     if (isZero(wantedDir)) {
       return this.finishStep(previousPixelPos, previousDirection, snappedArcadePixelPos);
     }
+
+    // Facing is an input intent, not only a successful movement result.
+    // Keep offsetDir for the sprite render offset used by the gameplay anchor:
+    // Godot turns the AnimatedSprite toward blocked input, but it does not use
+    // the requested direction to shift the sprite position unless movement
+    // actually commits.
+    this.facingDir = wantedDir;
 
     if (isZero(this.currentDir)) {
       const originalPixelPos = clone(this.arcadePixelPos);
@@ -490,6 +500,7 @@ export class PlayerMovementMotor {
       previousDirection,
       currentDirection: clone(this.currentDir),
       offsetDirection: clone(this.offsetDir),
+      facingDirection: clone(this.facingDir),
     };
   }
 
