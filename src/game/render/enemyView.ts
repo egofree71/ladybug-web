@@ -19,6 +19,7 @@ export interface EnemyFieldView {
   resetAfterPlayerDeath(): void;
   hideAllViewsForPlayerDeathSequence(): void;
   syncFromRuntimeState(): void;
+  destroy(): void;
 }
 
 /** Creates the runtime enemy system and all four Phaser enemy sprites. */
@@ -77,6 +78,14 @@ export function createEnemies(
 
     syncFromRuntimeState(): void {
       syncSprites(enemySystem.monsters, spritesByMonsterId, levelNumber, suppressViewsDuringPlayerDeath);
+    },
+
+    destroy(): void {
+      for (const sprite of spritesByMonsterId.values()) {
+        sprite.destroy();
+      }
+
+      spritesByMonsterId.clear();
     },
   };
 

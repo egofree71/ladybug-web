@@ -15,6 +15,7 @@ export interface VegetableBonusFieldView {
   tryConsumeAtPlayerArcadePosition(playerArcadePixelPos: Vector2i, enemySystem: EnemySystem): VegetableBonusPickupResult;
   resetRuntimeState(enemySystem?: EnemySystem): void;
   syncFromRuntimeState(): void;
+  destroy(): void;
 }
 
 /** Creates the central vegetable bonus runtime and its single Phaser sprite. */
@@ -46,6 +47,10 @@ export function createVegetableBonus(scene: Phaser.Scene, levelNumber: number): 
 
     syncFromRuntimeState(): void {
       syncSprite(sprite, state);
+    },
+
+    destroy(): void {
+      sprite.destroy();
     },
   };
 

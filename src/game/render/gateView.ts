@@ -18,6 +18,7 @@ const GATE_FRAME = {
 export interface GateFieldView {
   readonly gateSystem: GateSystem;
   syncFromRuntimeState(): void;
+  destroy(): void;
 }
 
 /** Renders and synchronizes the rotating-gate sprites with their runtime state. */
@@ -40,6 +41,14 @@ export function createRotatingGates(scene: Phaser.Scene): GateFieldView {
       for (const gate of gateSystem.gates) {
         spritesByGateId.get(gate.id)?.setFrame(frameForGateState(gate));
       }
+    },
+
+    destroy(): void {
+      for (const sprite of spritesByGateId.values()) {
+        sprite.destroy();
+      }
+
+      spritesByGateId.clear();
     },
   };
 }

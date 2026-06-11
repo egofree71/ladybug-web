@@ -2,7 +2,7 @@
 
 This document describes the current state of the early Phaser web remake of Lady Bug.
 
-The current implementation focuses on the level-1 game screen, the first collectible systems, the initial player entry sequence, the first playable player movement pass, pickup/scoring for non-lethal collectibles, skull contact, the player death sequence, and respawn from the HUD. Enemies are intentionally left for later work.
+The current implementation focuses on the playable maze loop: collectibles, player movement, gate interaction, skull and enemy deaths, respawn from the HUD, enemy release, the central vegetable bonus, and direct level progression after the board is cleared.
 
 ## Current Scope
 
@@ -10,13 +10,13 @@ The current branch implements:
 
 - the Phaser canvas and scaling setup;
 - the maze background;
-- the outer border that will later act as the enemy-release timer;
+- the animated outer border used as the enemy-release timer;
 - the 20 green rotating gates, displayed in their initial state;
 - the top HUD: `SPECIAL`, `EXTRA`, `x2 x3 x5`;
 - the bottom HUD: remaining lives and a temporary score;
 - crisp bitmap-based HUD text rendering;
 - base flower collectibles;
-- level-1 special collectibles:
+- level-dependent special collectibles:
   - hearts;
   - letters;
   - skulls;
@@ -39,19 +39,20 @@ The current branch implements:
 - life count updates after death;
 - respawn from the HUD life icons when reserve lives remain;
 - gameplay sound effects for player entry, flower pickup, heart / letter pickup, gate rotation, player death, enemy events, vegetable pickup and the maze-border timer tick;
-- non-blocking first-entry audio handling so browser audio locks cannot pause the HUD entry sequence.
+- non-blocking first-entry audio handling so browser audio locks cannot pause the HUD entry sequence;
+- level completion after every flower, heart and letter has been collected;
+- direct transition to the next level without an interstitial screen;
+- per-level reset of collectibles, gates, enemies, vegetable bonus, heart multiplier and border-timer speed;
+- level-dependent enemy sprites and enemy chase timing;
+- browser debug commands for enemy release and level-skip testing.
 
 The current branch does not implement yet:
 
-- level completion / level transitions after clearing all progress collectibles;
+- transition screens that preview the next level;
 - completed `SPECIAL` / `EXTRA` awards;
-- enemies and enemy-triggered player death;
-- enemy spawning;
-- the real border timer animation;
-- level transitions;
 - a complete game-over screen after the last life is lost.
 
-The goal is now to validate the first playable loop around movement, gate interaction, collectible pickup, scoring, lethal skull contact, HUD life updates and respawn before adding enemies.
+The goal is now to validate the first multi-level loop around movement, gate interaction, collectible pickup, scoring, lethal skull/enemy contact, HUD life updates, respawn, enemy release, vegetable bonus and level progression.
 
 ## Reference Used
 
@@ -520,7 +521,7 @@ Responsibilities:
 
 - read `collectibles_layout.json` from the Phaser JSON cache;
 - draw all base flower cells;
-- replace selected flowers with level-1 hearts, letters and skulls;
+- replace selected flowers with level-dependent hearts, letters and skulls;
 - keep semantic runtime state for each active collectible;
 - keep references to sprites affected by the color cycle;
 - update heart and letter colors when the cycle changes;
@@ -533,6 +534,9 @@ The view currently exposes a small `CollectibleFieldView` facade with:
 applyColorCycle(color)
 tryConsumeCollectible(cell)
 clearSkulls()
+remainingProgressCollectibleCount
+isLevelCleared
+destroy()
 ```
 
 This keeps color-cycle and pickup state separate from the Phaser scene orchestration code while still avoiding any inference from sprite frames.
@@ -552,12 +556,13 @@ Responsibilities:
 
 - preload the required visual and audio assets;
 - display the maze background;
-- create the border timer preview;
-- create the collectible field;
+- create and configure the animated border timer for the current level;
+- create the level-dependent collectible field;
 - create the rotating gates and their runtime state;
 - create the HUD;
-- create the player view, input state and movement motor;
-- start the HUD-to-maze player entry animation;
+- create the player view and input state;
+- create the current-level movement motor against the active gate runtime;
+- start the HUD-to-maze player entry animation only on the initial board entry and normal life respawns;
 - start the initial entry animation immediately even if browser audio is locked, so the game never appears frozen before the HUD life movement;
 - run the fixed-step clock from Phaser's variable `update()` callback;
 - advance the player entry animation from fixed simulation ticks;
@@ -568,6 +573,10 @@ Responsibilities:
 - detect skull pickups and start the player death sequence;
 - decrement lives and update the HUD life display after death;
 - reset the player movement motor and restart the HUD-to-maze entry animation when reserve lives remain;
+- detect when all progress collectibles have been consumed;
+- advance directly to the next level without a HUD-entry animation;
+- preserve score, lives and SPECIAL / EXTRA progress when advancing by board clear;
+- reset the level-local heart multiplier, color cycle, collectibles, gates, enemies, vegetable bonus and border timer on level advance;
 - route player-entry, pickup, gate-rotation, death, enemy and timer events to `GameplaySoundPlayer`.
 
 The scene orchestrates the current systems, but it should not become a large gameplay class. Later branches should continue moving dedicated logic into focused modules.
@@ -644,6 +653,7 @@ Current rule:
 - sound effects are triggered from gameplay events or fixed simulation ticks, not from render-frame callbacks;
 - the audible maze-border timer cadence is reset with the visual timer when a board attempt restarts;
 - for level 1, the timer sound cadence matches the visible border cadence: one restart every 9 fixed simulation ticks;
+- the visible border timer speed is level-dependent: level 1 uses 9 ticks per tile, levels 2-4 use 6, and level 5 onward uses 3;
 - the first HUD-to-maze entry does not wait for browser audio unlock; if the sound manager is still locked, the entry jingle is skipped instead of played late.
 
 This separation is important because earlier web projects showed that frame-rate-dependent movement can behave differently on mobile browsers and desktop browsers.
@@ -673,12 +683,12 @@ To avoid deploying technical documents when testing the game:
 
 ## Possible Next Steps
 
-After this branch is validated, the next branches could be:
+After this branch is validated, the next branches could focus on:
 
 ```text
-feature/border-timer-animation
-feature/enemy-spawn
-feature/enemy-movement
+feature/special-extra-awards
+feature/game-over-screen
+feature/level-transition-screen
 ```
 
 The exact order may change, but the idea is to keep branches small, each with a clear goal.

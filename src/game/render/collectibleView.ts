@@ -19,8 +19,6 @@ import {
   type CollectiblePlacement,
 } from '../gameplay/collectibles/collectibleTypes';
 
-const INITIAL_LEVEL_NUMBER = 1;
-
 // In the Godot Collectible scene, the heart center overlay is positioned
 // 2 pixels to the right of the main ring sprite. The frames are already
 // 64x64 in the web build, so the same offset is applied directly here.
@@ -47,6 +45,9 @@ export interface CollectibleFieldView {
   tryConsumeCollectible(cell: CollectibleCell): CollectiblePickupResult;
   tryConsumeSkullAt(cell: CollectibleCell): boolean;
   clearSkulls(): void;
+  readonly remainingProgressCollectibleCount: number;
+  readonly isLevelCleared: boolean;
+  destroy(): void;
 }
 
 class PhaserCollectibleFieldView implements CollectibleFieldView {
@@ -54,6 +55,22 @@ class PhaserCollectibleFieldView implements CollectibleFieldView {
 
   public constructor(collectiblesByCell: Map<string, RuntimeCollectible>) {
     this.collectiblesByCell = collectiblesByCell;
+  }
+
+  public get remainingProgressCollectibleCount(): number {
+    let count = 0;
+
+    for (const runtimeCollectible of this.collectiblesByCell.values()) {
+      if (isLevelProgressCollectible(runtimeCollectible.kind)) {
+        count += 1;
+      }
+    }
+
+    return count;
+  }
+
+  public get isLevelCleared(): boolean {
+    return this.remainingProgressCollectibleCount <= 0;
   }
 
   /** Applies the current global heart/letter color to all active cycle targets. */
@@ -129,6 +146,21 @@ class PhaserCollectibleFieldView implements CollectibleFieldView {
       }
     }
   }
+
+  /** Destroys every remaining collectible sprite before a new level field is drawn. */
+  public destroy(): void {
+    for (const runtimeCollectible of this.collectiblesByCell.values()) {
+      for (const sprite of runtimeCollectible.sprites) {
+        sprite.destroy();
+      }
+    }
+
+    this.collectiblesByCell.clear();
+  }
+}
+
+function isLevelProgressCollectible(kind: CollectiblePlacement['kind']): boolean {
+  return kind === COLLECTIBLE_KIND.flower || kind === COLLECTIBLE_KIND.heart || kind === COLLECTIBLE_KIND.letter;
 }
 
 function cellKey(cell: CollectibleCell): string {
@@ -136,15 +168,17 @@ function cellKey(cell: CollectibleCell): string {
 }
 
 /**
- * Draws the level-1 collectible field.
+ * Draws the collectible field for one level.
  *
  * The renderer starts from the 11x11 base flower mask, then applies the same
  * special-start placement model as the Godot remake: three flowers are replaced
- * with letters, three with hearts, and level 1 receives two skulls. Pickup and
- * scoring rules are handled outside this renderer via the returned facade.
+ * with letters, three with hearts, and the level-dependent skull count replaces
+ * additional flowers. Pickup and scoring rules are handled outside this renderer
+ * via the returned facade.
  */
-export function createLevelOneCollectibles(
+export function createLevelCollectibles(
   scene: Phaser.Scene,
+  levelNumber: number,
   initialColor: CollectibleColor = COLLECTIBLE_COLOR.blue,
 ): CollectibleFieldView {
   const layout = scene.cache.json.get(ASSET_KEYS.collectibleLayout) as CollectibleLayoutData | undefined;
@@ -154,7 +188,7 @@ export function createLevelOneCollectibles(
     return new PhaserCollectibleFieldView(new Map());
   }
 
-  const specialPlacements = generateSpecialCollectibleSpawnPlan(INITIAL_LEVEL_NUMBER).placements;
+  const specialPlacements = generateSpecialCollectibleSpawnPlan(levelNumber).placements;
   const specialByCell = new Map<string, CollectiblePlacement>();
   const collectiblesByCell = new Map<string, RuntimeCollectible>();
 
@@ -288,4 +322,12 @@ function drawSingleFrame(
     .setOrigin(0, 0)
     .setTint(tint)
     .setDepth(COLLECTIBLE_LAYOUT.depth + depthOffset);
+}
+
+/** Backwards-compatible alias kept for older scene code and ad-hoc tests. */
+export function createLevelOneCollectibles(
+  scene: Phaser.Scene,
+  initialColor: CollectibleColor = COLLECTIBLE_COLOR.blue,
+): CollectibleFieldView {
+  return createLevelCollectibles(scene, 1, initialColor);
 }

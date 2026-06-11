@@ -9,6 +9,7 @@ export interface LadyBugDebugConsoleHooks {
   status(): LadyBugDebugStatus;
   releaseNextEnemy(): LadyBugDebugCommandResult;
   releaseAllEnemies(): LadyBugDebugCommandResult;
+  nextLevel(): LadyBugDebugLevelCommandResult;
   runtime(): Record<string, unknown>;
 }
 
@@ -17,10 +18,12 @@ export interface LadyBugDebugApi {
   status(): LadyBugDebugStatus;
   releaseNextEnemy(): LadyBugDebugCommandResult;
   releaseAllEnemies(): LadyBugDebugCommandResult;
+  nextLevel(): LadyBugDebugLevelCommandResult;
   runtime(): Record<string, unknown>;
 }
 
 export interface LadyBugDebugStatus {
+  readonly levelNumber: number;
   readonly livesRemaining: number;
   readonly score: number;
   readonly waitingForAudioUnlock: boolean;
@@ -50,6 +53,14 @@ export interface LadyBugDebugCommandResult {
   readonly status: LadyBugDebugStatus;
 }
 
+export interface LadyBugDebugLevelCommandResult {
+  readonly ok: boolean;
+  readonly message: string;
+  readonly previousLevelNumber: number;
+  readonly levelNumber: number;
+  readonly status: LadyBugDebugStatus;
+}
+
 declare global {
   interface Window {
     ladyBugDebug?: LadyBugDebugApi;
@@ -62,6 +73,7 @@ const HELP_LINES = [
   'ladyBugDebug.status() - inspect lives, score and enemy states',
   'ladyBugDebug.releaseNextEnemy() - finish the current border-timer cycle and release the next waiting enemy',
   'ladyBugDebug.releaseAllEnemies() - repeat releaseNextEnemy until no enemy is waiting',
+  'ladyBugDebug.nextLevel() - skip to the next level without playing a transition screen',
   'ladyBugDebug.runtime() - return raw scene/runtime objects for deeper manual inspection',
 ] as const;
 
@@ -91,6 +103,12 @@ export function installLadyBugDebugConsole(hooks: LadyBugDebugConsoleHooks): () 
     releaseAllEnemies(): LadyBugDebugCommandResult {
       const result = hooks.releaseAllEnemies();
       console.info('[LadyBugDebug] releaseAllEnemies', result);
+      return result;
+    },
+
+    nextLevel(): LadyBugDebugLevelCommandResult {
+      const result = hooks.nextLevel();
+      console.info('[LadyBugDebug] nextLevel', result);
       return result;
     },
 

@@ -18,7 +18,7 @@ import { PLAYER_LAYOUT } from '../layout/playerLayout';
 import { createHud, type HudView } from '../render/hudView';
 import { CollectiblePickupPopupView } from '../render/collectiblePickupPopupView';
 import { createMazeBorderTimer, type MazeBorderTimerView } from '../render/mazeBorderTimerView';
-import { createLevelOneCollectibles, type CollectibleFieldView } from '../render/collectibleView';
+import { createLevelCollectibles, type CollectibleFieldView } from '../render/collectibleView';
 import { createRotatingGates, type GateFieldView } from '../render/gateView';
 import { getPlayerStartCenter } from '../layout/playerLayout';
 import { PlayerView } from '../render/playerView';
@@ -26,7 +26,17 @@ import { createEnemies, type EnemyFieldView } from '../render/enemyView';
 import { createVegetableBonus, type VegetableBonusFieldView } from '../render/vegetableBonusView';
 import { enemyPlayerCollisionActive } from '../gameplay/enemies/enemyMovementAi';
 import { MONSTER_DIR, type MonsterDir } from '../gameplay/enemies/monsterDirection';
-import { installLadyBugDebugConsole, type LadyBugDebugCommandResult, type LadyBugDebugEnemyStatus, type LadyBugDebugStatus } from '../debug/ladyBugDebugConsole';
+import {
+  installLadyBugDebugConsole,
+  type LadyBugDebugCommandResult,
+  type LadyBugDebugEnemyStatus,
+  type LadyBugDebugLevelCommandResult,
+  type LadyBugDebugStatus,
+} from '../debug/ladyBugDebugConsole';
+
+interface LevelSetupOptions {
+  readonly useHudEntryAnimation: boolean;
+}
 
 /**
  * First gameplay scene for the Phaser remake.
@@ -37,7 +47,7 @@ import { installLadyBugDebugConsole, type LadyBugDebugCommandResult, type LadyBu
  * gameplay speed.
  */
 export class GameScene extends Phaser.Scene {
-  private readonly levelNumber = 1;
+  private currentLevelNumber = 1;
   private readonly arcadeClock = new FixedArcadeClock();
   private readonly collectibleColorCycle = new CollectibleColorCycle();
   private readonly scoreState = new ScoreState();
@@ -52,12 +62,14 @@ export class GameScene extends Phaser.Scene {
   private hud?: HudView;
   private pickupPopupView?: CollectiblePickupPopupView;
   private player?: PlayerView;
+  private mazeGrid?: MazeGrid;
   private playerInput?: PlayerInputState;
   private playerMovement?: PlayerMovementMotor;
   private soundPlayer?: GameplaySoundPlayer;
   private isWaitingForAudioUnlockBeforeEntry = false;
   private livesRemaining = 3;
   private isPlayerDeathSequenceActive = false;
+  private isLevelAdvancePending = false;
   private uninstallDebugConsole?: () => void;
 
   public constructor() {
@@ -174,6 +186,7 @@ export class GameScene extends Phaser.Scene {
   public create(): void {
     this.cameras.main.setRoundPixels(true);
     this.arcadeClock.reset();
+    this.currentLevelNumber = 1;
     this.collectibleColorCycle.resetToBlue();
     this.scoreState.reset();
     this.heartMultiplierState.reset();
@@ -181,36 +194,77 @@ export class GameScene extends Phaser.Scene {
     this.pickupPopupState.clear();
     this.livesRemaining = 3;
     this.isPlayerDeathSequenceActive = false;
+    this.isLevelAdvancePending = false;
     this.isWaitingForAudioUnlockBeforeEntry = false;
     this.soundPlayer = new GameplaySoundPlayer(this);
-    this.soundPlayer.resetTimerStepCadence(this.levelNumber);
-
-    const mazeGrid = MazeGrid.fromDataFile(this.cache.json.get(ASSET_KEYS.mazeLayout));
+    this.mazeGrid = MazeGrid.fromDataFile(this.cache.json.get(ASSET_KEYS.mazeLayout));
 
     this.add
       .image(MAZE.imageX, MAZE.imageY, ASSET_KEYS.mazeBackground)
       .setOrigin(0, 0)
       .setDepth(0);
 
-    this.borderTimer = createMazeBorderTimer(this, this.levelNumber);
-    this.collectibleField = createLevelOneCollectibles(this, this.collectibleColorCycle.currentColor);
-    this.gateField = createRotatingGates(this);
-    this.enemies = createEnemies(this, mazeGrid, this.gateField.gateSystem, this.levelNumber);
-    this.vegetableBonus = createVegetableBonus(this, this.levelNumber);
-
+    this.borderTimer = createMazeBorderTimer(this, this.currentLevelNumber);
     this.pickupPopupView = new CollectiblePickupPopupView(this);
     this.player = new PlayerView(this);
     this.playerInput = new PlayerInputState(this);
-    this.playerMovement = new PlayerMovementMotor(
-      mazeGrid,
-      this.gateField.gateSystem,
-      PLAYER_LAYOUT.startCell,
-    );
     this.hud = createHud(this);
     this.hud.setLives(this.livesRemaining);
     this.syncHudFromGameState();
+    this.setupCurrentLevel({ useHudEntryAnimation: true });
     this.installDebugConsole();
-    this.startPlayerEntryAnimation();
+  }
+
+  private setupCurrentLevel(options: LevelSetupOptions): void {
+    if (!this.mazeGrid) {
+      return;
+    }
+
+    this.destroyLevelRuntimeViews();
+    this.arcadeClock.reset();
+    this.collectibleColorCycle.resetToBlue();
+    this.heartMultiplierState.reset();
+    this.pickupPopupState.clear();
+    this.pickupPopupView?.clear();
+    this.isPlayerDeathSequenceActive = false;
+    this.isLevelAdvancePending = false;
+
+    this.borderTimer?.configureForLevel(this.currentLevelNumber);
+    this.soundPlayer?.resetTimerStepCadence(this.currentLevelNumber);
+
+    this.collectibleField = createLevelCollectibles(
+      this,
+      this.currentLevelNumber,
+      this.collectibleColorCycle.currentColor,
+    );
+    this.gateField = createRotatingGates(this);
+    this.enemies = createEnemies(this, this.mazeGrid, this.gateField.gateSystem, this.currentLevelNumber);
+    this.vegetableBonus = createVegetableBonus(this, this.currentLevelNumber);
+    this.playerMovement = new PlayerMovementMotor(
+      this.mazeGrid,
+      this.gateField.gateSystem,
+      PLAYER_LAYOUT.startCell,
+    );
+
+    this.syncHudFromGameState();
+
+    if (options.useHudEntryAnimation) {
+      this.startPlayerEntryAnimation();
+      return;
+    }
+
+    this.placePlayerDirectlyAtLevelStart();
+  }
+
+  private destroyLevelRuntimeViews(): void {
+    this.collectibleField?.destroy();
+    this.collectibleField = undefined;
+    this.gateField?.destroy();
+    this.gateField = undefined;
+    this.enemies?.destroy();
+    this.enemies = undefined;
+    this.vegetableBonus?.destroy();
+    this.vegetableBonus = undefined;
   }
 
   public override update(_time: number, delta: number): void {
@@ -235,7 +289,7 @@ export class GameScene extends Phaser.Scene {
 
     this.gateField?.gateSystem.advanceOneTick();
     this.advanceBorderTimerOneTick();
-    this.soundPlayer?.advanceTimerSoundOneTick(this.levelNumber);
+    this.soundPlayer?.advanceTimerSoundOneTick(this.currentLevelNumber);
     this.advanceVegetableBonusOneTick();
     this.advanceEnemiesOneTick();
     this.advancePlayerOneTick();
@@ -313,6 +367,8 @@ export class GameScene extends Phaser.Scene {
         break;
       }
     }
+
+    this.tryAdvanceToNextLevelIfBoardCleared();
   }
 
   private tryConsumeVegetableBonus(): void {
@@ -385,6 +441,23 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+
+  private tryAdvanceToNextLevelIfBoardCleared(): void {
+    if (this.isPlayerDeathSequenceActive || !this.collectibleField?.isLevelCleared) {
+      return;
+    }
+
+    this.isLevelAdvancePending = true;
+
+    if (!this.pickupPopupState.isActive) {
+      this.advanceToNextLevel();
+    }
+  }
+
+  private advanceToNextLevel(): void {
+    this.currentLevelNumber += 1;
+    this.setupCurrentLevel({ useHudEntryAnimation: false });
+  }
 
 
   private checkPlayerEnemyCollisions(): void {
@@ -464,7 +537,7 @@ export class GameScene extends Phaser.Scene {
     this.vegetableBonus?.resetRuntimeState(this.enemies?.enemySystem);
     this.playerMovement?.resetToStartCell();
     this.borderTimer?.resetTimer();
-    this.soundPlayer?.resetTimerStepCadence(this.levelNumber);
+    this.soundPlayer?.resetTimerStepCadence(this.currentLevelNumber);
     this.startPlayerEntryAnimation();
   }
 
@@ -492,6 +565,12 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.pickupPopupView?.clear();
+
+    if (this.isLevelAdvancePending) {
+      this.advanceToNextLevel();
+      return;
+    }
+
     this.player?.show();
   }
 
@@ -503,8 +582,10 @@ export class GameScene extends Phaser.Scene {
       status: () => this.createDebugStatus(),
       releaseNextEnemy: () => this.debugReleaseNextEnemy(),
       releaseAllEnemies: () => this.debugReleaseAllEnemies(),
+      nextLevel: () => this.debugAdvanceToNextLevel(),
       runtime: () => ({
         scene: this,
+        currentLevelNumber: this.currentLevelNumber,
         borderTimer: this.borderTimer?.timer,
         enemies: this.enemies?.enemySystem,
         vegetableBonus: this.vegetableBonus,
@@ -576,6 +657,37 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
+  private debugAdvanceToNextLevel(): LadyBugDebugLevelCommandResult {
+    const previousLevelNumber = this.currentLevelNumber;
+
+    if (this.isPlayerDeathSequenceActive) {
+      return this.createDebugLevelCommandResult(
+        false,
+        'Cannot skip level while the player death sequence is active.',
+        previousLevelNumber,
+      );
+    }
+
+    if (this.hud?.isLifeEntryAnimationActive) {
+      return this.createDebugLevelCommandResult(
+        false,
+        'Cannot skip level while the HUD entry animation is active.',
+        previousLevelNumber,
+      );
+    }
+
+    this.pickupPopupState.clear();
+    this.pickupPopupView?.clear();
+    this.currentLevelNumber += 1;
+    this.setupCurrentLevel({ useHudEntryAnimation: false });
+
+    return this.createDebugLevelCommandResult(
+      true,
+      `Skipped from level ${previousLevelNumber} to level ${this.currentLevelNumber}.`,
+      previousLevelNumber,
+    );
+  }
+
   private advanceBorderTimerUntilReleaseOpportunityForDebug(): boolean {
     if (!this.borderTimer) {
       return false;
@@ -611,10 +723,25 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
+  private createDebugLevelCommandResult(
+    ok: boolean,
+    message: string,
+    previousLevelNumber: number,
+  ): LadyBugDebugLevelCommandResult {
+    return {
+      ok,
+      message,
+      previousLevelNumber,
+      levelNumber: this.currentLevelNumber,
+      status: this.createDebugStatus(),
+    };
+  }
+
   private createDebugStatus(): LadyBugDebugStatus {
     const enemySystem = this.enemies?.enemySystem;
 
     return {
+      levelNumber: this.currentLevelNumber,
       livesRemaining: this.livesRemaining,
       score: this.scoreState.score,
       waitingForAudioUnlock: this.isWaitingForAudioUnlockBeforeEntry,
@@ -639,6 +766,13 @@ export class GameScene extends Phaser.Scene {
     this.hud?.setScore(this.scoreState.score);
     this.hud?.setMultiplierStep(this.heartMultiplierState.step);
     this.hud?.setWordProgress(this.wordProgressState);
+  }
+
+  private placePlayerDirectlyAtLevelStart(): void {
+    this.isWaitingForAudioUnlockBeforeEntry = false;
+    this.hud?.setCurrentLifeInMaze(true);
+    this.playerMovement?.resetToStartCell();
+    this.player?.showAtStart();
   }
 
   private startPlayerEntryAnimation(): void {
