@@ -12,7 +12,16 @@ export const ASSET_KEYS = {
   ladybug: 'ladybug',
   playerDeathRed: 'player-death-red',
   playerDeathGhost: 'player-death-ghost',
+  enemyLevel1: 'enemy-level-1',
+  enemyLevel2: 'enemy-level-2',
+  enemyLevel3: 'enemy-level-3',
+  enemyLevel4: 'enemy-level-4',
+  enemyLevel5: 'enemy-level-5',
+  enemyLevel6: 'enemy-level-6',
+  enemyLevel7: 'enemy-level-7',
+  enemyLevel8: 'enemy-level-8',
   collectibles: 'collectibles',
+  vegetables: 'vegetables',
   collectibleLayout: 'collectible-layout',
   mazeLayout: 'maze-layout',
   hudArcadeFont26: 'hud-arcade-font-26',
@@ -23,6 +32,10 @@ export const ASSET_KEYS = {
   collectiblePickupSound: 'collectible-pickup-sound',
   gateRotatedSound: 'gate-rotated-sound',
   deathSequenceSound: 'death-sequence-sound',
+  enemyDeathSound: 'enemy-death-sound',
+  enemyExitWarningSound: 'enemy-exit-warning-sound',
+  timerStepSound: 'timer-step-sound',
+  vegetablePickupSound: 'vegetable-pickup-sound',
 } as const;
 
 export function assetUrl(relativePath: string): string {

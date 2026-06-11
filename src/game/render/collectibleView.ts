@@ -45,6 +45,7 @@ interface RuntimeCollectible {
 export interface CollectibleFieldView {
   applyColorCycle(color: CollectibleColor): void;
   tryConsumeCollectible(cell: CollectibleCell): CollectiblePickupResult;
+  tryConsumeSkullAt(cell: CollectibleCell): boolean;
   clearSkulls(): void;
 }
 
@@ -94,6 +95,24 @@ class PhaserCollectibleFieldView implements CollectibleFieldView {
       color: runtimeCollectible.color,
       letter: runtimeCollectible.letter,
     };
+  }
+
+  /** Consumes a skull only when the requested cell currently contains one. */
+  public tryConsumeSkullAt(cell: CollectibleCell): boolean {
+    const key = cellKey(cell);
+    const runtimeCollectible = this.collectiblesByCell.get(key);
+
+    if (!runtimeCollectible || runtimeCollectible.kind !== COLLECTIBLE_KIND.skull) {
+      return false;
+    }
+
+    this.collectiblesByCell.delete(key);
+
+    for (const sprite of runtimeCollectible.sprites) {
+      sprite.destroy();
+    }
+
+    return true;
   }
 
   /** Removes every remaining skull after one skull has killed the player. */

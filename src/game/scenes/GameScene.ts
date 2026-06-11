@@ -17,11 +17,16 @@ import { PlayerMovementMotor } from '../gameplay/player/playerMovementMotor';
 import { PLAYER_LAYOUT } from '../layout/playerLayout';
 import { createHud, type HudView } from '../render/hudView';
 import { CollectiblePickupPopupView } from '../render/collectiblePickupPopupView';
-import { createMazeBorderTimer } from '../render/mazeBorderTimerView';
+import { createMazeBorderTimer, type MazeBorderTimerView } from '../render/mazeBorderTimerView';
 import { createLevelOneCollectibles, type CollectibleFieldView } from '../render/collectibleView';
 import { createRotatingGates, type GateFieldView } from '../render/gateView';
 import { getPlayerStartCenter } from '../layout/playerLayout';
 import { PlayerView } from '../render/playerView';
+import { createEnemies, type EnemyFieldView } from '../render/enemyView';
+import { createVegetableBonus, type VegetableBonusFieldView } from '../render/vegetableBonusView';
+import { enemyPlayerCollisionActive } from '../gameplay/enemies/enemyMovementAi';
+import { MONSTER_DIR, type MonsterDir } from '../gameplay/enemies/monsterDirection';
+import { installLadyBugDebugConsole, type LadyBugDebugCommandResult, type LadyBugDebugEnemyStatus, type LadyBugDebugStatus } from '../debug/ladyBugDebugConsole';
 
 /**
  * First gameplay scene for the Phaser remake.
@@ -32,6 +37,7 @@ import { PlayerView } from '../render/playerView';
  * gameplay speed.
  */
 export class GameScene extends Phaser.Scene {
+  private readonly levelNumber = 1;
   private readonly arcadeClock = new FixedArcadeClock();
   private readonly collectibleColorCycle = new CollectibleColorCycle();
   private readonly scoreState = new ScoreState();
@@ -40,6 +46,9 @@ export class GameScene extends Phaser.Scene {
   private readonly pickupPopupState = new CollectiblePickupPopupState();
   private collectibleField?: CollectibleFieldView;
   private gateField?: GateFieldView;
+  private borderTimer?: MazeBorderTimerView;
+  private enemies?: EnemyFieldView;
+  private vegetableBonus?: VegetableBonusFieldView;
   private hud?: HudView;
   private pickupPopupView?: CollectiblePickupPopupView;
   private player?: PlayerView;
@@ -49,6 +58,7 @@ export class GameScene extends Phaser.Scene {
   private isWaitingForAudioUnlockBeforeEntry = false;
   private livesRemaining = 3;
   private isPlayerDeathSequenceActive = false;
+  private uninstallDebugConsole?: () => void;
 
   public constructor() {
     super('GameScene');
@@ -72,6 +82,11 @@ export class GameScene extends Phaser.Scene {
       frameHeight: 64,
     });
 
+    this.load.spritesheet(ASSET_KEYS.vegetables, assetUrl('assets/sprites/props/vegetables.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
     this.load.json(ASSET_KEYS.collectibleLayout, assetUrl('assets/data/collectibles_layout.json'));
     this.load.json(ASSET_KEYS.mazeLayout, assetUrl('assets/data/maze.json'));
 
@@ -86,6 +101,46 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.load.spritesheet(ASSET_KEYS.playerDeathGhost, assetUrl('assets/sprites/player/player_dead_ghost.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.enemyLevel1, assetUrl('assets/sprites/enemies/enemy_level1.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.enemyLevel2, assetUrl('assets/sprites/enemies/enemy_level2.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.enemyLevel3, assetUrl('assets/sprites/enemies/enemy_level3.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.enemyLevel4, assetUrl('assets/sprites/enemies/enemy_level4.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.enemyLevel5, assetUrl('assets/sprites/enemies/enemy_level5.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.enemyLevel6, assetUrl('assets/sprites/enemies/enemy_level6.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.enemyLevel7, assetUrl('assets/sprites/enemies/enemy_level7.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.enemyLevel8, assetUrl('assets/sprites/enemies/enemy_level8.png'), {
       frameWidth: 64,
       frameHeight: 64,
     });
@@ -110,6 +165,10 @@ export class GameScene extends Phaser.Scene {
     this.load.audio(ASSET_KEYS.collectiblePickupSound, assetUrl('assets/audio/collectible_pickup.wav'));
     this.load.audio(ASSET_KEYS.gateRotatedSound, assetUrl('assets/audio/gate_rotated.wav'));
     this.load.audio(ASSET_KEYS.deathSequenceSound, assetUrl('assets/audio/death_sequence.wav'));
+    this.load.audio(ASSET_KEYS.enemyDeathSound, assetUrl('assets/audio/death_enemy.wav'));
+    this.load.audio(ASSET_KEYS.enemyExitWarningSound, assetUrl('assets/audio/enemy_exit.wav'));
+    this.load.audio(ASSET_KEYS.timerStepSound, assetUrl('assets/audio/timer.wav'));
+    this.load.audio(ASSET_KEYS.vegetablePickupSound, assetUrl('assets/audio/vegetable_pickup.wav'));
   }
 
   public create(): void {
@@ -124,6 +183,7 @@ export class GameScene extends Phaser.Scene {
     this.isPlayerDeathSequenceActive = false;
     this.isWaitingForAudioUnlockBeforeEntry = false;
     this.soundPlayer = new GameplaySoundPlayer(this);
+    this.soundPlayer.resetTimerStepCadence(this.levelNumber);
 
     const mazeGrid = MazeGrid.fromDataFile(this.cache.json.get(ASSET_KEYS.mazeLayout));
 
@@ -132,9 +192,11 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setDepth(0);
 
-    createMazeBorderTimer(this);
+    this.borderTimer = createMazeBorderTimer(this, this.levelNumber);
     this.collectibleField = createLevelOneCollectibles(this, this.collectibleColorCycle.currentColor);
     this.gateField = createRotatingGates(this);
+    this.enemies = createEnemies(this, mazeGrid, this.gateField.gateSystem, this.levelNumber);
+    this.vegetableBonus = createVegetableBonus(this, this.levelNumber);
 
     this.pickupPopupView = new CollectiblePickupPopupView(this);
     this.player = new PlayerView(this);
@@ -147,7 +209,8 @@ export class GameScene extends Phaser.Scene {
     this.hud = createHud(this);
     this.hud.setLives(this.livesRemaining);
     this.syncHudFromGameState();
-    this.startPlayerEntryAnimation({ waitForAudioUnlock: true });
+    this.installDebugConsole();
+    this.startPlayerEntryAnimation();
   }
 
   public override update(_time: number, delta: number): void {
@@ -155,10 +218,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   private runOneSimulationTick(): void {
-    if (this.isWaitingForAudioUnlockBeforeEntry) {
-      return;
-    }
-
     if (this.hud?.isLifeEntryAnimationActive) {
       this.hud.advanceLifeEntryAnimationOneTick();
       return;
@@ -175,13 +234,61 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.gateField?.gateSystem.advanceOneTick();
+    this.advanceBorderTimerOneTick();
+    this.soundPlayer?.advanceTimerSoundOneTick(this.levelNumber);
+    this.advanceVegetableBonusOneTick();
+    this.advanceEnemiesOneTick();
+    this.advancePlayerOneTick();
+    this.tryConsumeVegetableBonus();
+    this.checkPlayerEnemyCollisions();
 
     if (this.collectibleColorCycle.advanceOneTick()) {
       this.collectibleField?.applyColorCycle(this.collectibleColorCycle.currentColor);
     }
 
-    this.advancePlayerOneTick();
     this.gateField?.syncFromRuntimeState();
+  }
+
+  private advanceBorderTimerOneTick(): void {
+    const stepResult = this.borderTimer?.advanceOneSimulationTick();
+
+    if (!stepResult) {
+      return;
+    }
+
+    if (stepResult.shouldPlayEnemyExitWarning && this.enemies?.hasReleaseCandidate) {
+      this.soundPlayer?.playEnemyExitWarning();
+    }
+
+    if (stepResult.shouldReleaseEnemy) {
+      this.handleBorderTimerReleaseOpportunity();
+    }
+  }
+
+  private handleBorderTimerReleaseOpportunity(): boolean {
+    return this.enemies?.tryReleaseNextEnemy() ?? false;
+  }
+
+  private advanceVegetableBonusOneTick(): void {
+    if (!this.enemies) {
+      return;
+    }
+
+    this.vegetableBonus?.advanceOneSimulationTick(this.enemies.enemySystem);
+    this.enemies.syncFromRuntimeState();
+  }
+
+  private advanceEnemiesOneTick(): void {
+    if (!this.playerMovement || !this.collectibleField) {
+      return;
+    }
+
+    this.enemies?.advanceOneSimulationTick({
+      playerArcadePixelPos: this.playerMovement.arcadePosition,
+      playerCurrentDirection: this.playerMovement.currentDirection,
+      tryConsumeSkullAt: (cell) => this.collectibleField?.tryConsumeSkullAt(cell) ?? false,
+      onEnemyKilledBySkull: () => this.soundPlayer?.playEnemyDeathFromSkull(),
+    });
   }
 
   private advancePlayerOneTick(): void {
@@ -206,6 +313,26 @@ export class GameScene extends Phaser.Scene {
         break;
       }
     }
+  }
+
+  private tryConsumeVegetableBonus(): void {
+    if (!this.playerMovement || !this.enemies || !this.vegetableBonus || this.isPlayerDeathSequenceActive) {
+      return;
+    }
+
+    const result = this.vegetableBonus.tryConsumeAtPlayerArcadePosition(
+      this.playerMovement.arcadePosition,
+      this.enemies.enemySystem,
+    );
+
+    if (!result.consumed) {
+      return;
+    }
+
+    this.soundPlayer?.playVegetablePickup();
+    this.scoreState.addPoints(result.scoreDelta);
+    this.hud?.setScore(this.scoreState.score);
+    this.enemies.syncFromRuntimeState();
   }
 
   private playGateSoundsForAcceptedPushes(): void {
@@ -260,6 +387,43 @@ export class GameScene extends Phaser.Scene {
 
 
 
+  private checkPlayerEnemyCollisions(): void {
+    if (!this.playerMovement || !this.enemies || this.isPlayerDeathSequenceActive || this.pickupPopupState.isActive) {
+      return;
+    }
+
+    const playerArcadePixelPos = this.playerMovement.arcadePosition;
+
+    for (const monster of this.enemies.enemySystem.collisionActiveMonsters) {
+      if (enemyPlayerCollisionActive(playerArcadePixelPos, monster)) {
+        this.startPlayerDeathFromEnemy();
+        return;
+      }
+    }
+  }
+
+
+
+  private startPlayerDeathFromEnemy(): void {
+    if (this.isPlayerDeathSequenceActive) {
+      return;
+    }
+
+    this.pickupPopupState.clear();
+    this.pickupPopupView?.clear();
+    this.enemies?.hideAllViewsForPlayerDeathSequence();
+    this.vegetableBonus?.resetRuntimeState(this.enemies?.enemySystem);
+
+    this.livesRemaining = Math.max(0, this.livesRemaining - 1);
+    this.hud?.setCurrentLifeInMaze(false);
+    this.hud?.setLives(this.livesRemaining);
+
+    this.soundPlayer?.playDeathSequenceStart();
+
+    this.isPlayerDeathSequenceActive = true;
+    this.player?.startDeathSequence();
+  }
+
   private startPlayerDeathFromSkull(): void {
     if (this.isPlayerDeathSequenceActive) {
       return;
@@ -268,6 +432,7 @@ export class GameScene extends Phaser.Scene {
     this.pickupPopupState.clear();
     this.pickupPopupView?.clear();
     this.collectibleField?.clearSkulls();
+    this.vegetableBonus?.resetRuntimeState(this.enemies?.enemySystem);
 
     this.livesRemaining = Math.max(0, this.livesRemaining - 1);
     this.hud?.setCurrentLifeInMaze(false);
@@ -290,11 +455,16 @@ export class GameScene extends Phaser.Scene {
     this.arcadeClock.reset();
 
     if (this.livesRemaining <= 0) {
+      this.enemies?.hideAllViewsForPlayerDeathSequence();
       this.player?.hideAfterDeathSequence();
       return;
     }
 
+    this.enemies?.resetAfterPlayerDeath();
+    this.vegetableBonus?.resetRuntimeState(this.enemies?.enemySystem);
     this.playerMovement?.resetToStartCell();
+    this.borderTimer?.resetTimer();
+    this.soundPlayer?.resetTimerStepCadence(this.levelNumber);
     this.startPlayerEntryAnimation();
   }
 
@@ -325,30 +495,160 @@ export class GameScene extends Phaser.Scene {
     this.player?.show();
   }
 
+
+  private installDebugConsole(): void {
+    this.uninstallDebugConsole?.();
+
+    this.uninstallDebugConsole = installLadyBugDebugConsole({
+      status: () => this.createDebugStatus(),
+      releaseNextEnemy: () => this.debugReleaseNextEnemy(),
+      releaseAllEnemies: () => this.debugReleaseAllEnemies(),
+      runtime: () => ({
+        scene: this,
+        borderTimer: this.borderTimer?.timer,
+        enemies: this.enemies?.enemySystem,
+        vegetableBonus: this.vegetableBonus,
+        playerMovement: this.playerMovement,
+        collectibleField: this.collectibleField,
+        gateSystem: this.gateField?.gateSystem,
+      }),
+    });
+
+    this.events.once('shutdown', () => {
+      this.uninstallDebugConsole?.();
+      this.uninstallDebugConsole = undefined;
+    });
+  }
+
+  private debugReleaseNextEnemy(): LadyBugDebugCommandResult {
+    const statusBeforeRelease = this.createDebugStatus();
+
+    if (!this.borderTimer || !this.enemies) {
+      return this.createDebugCommandResult(false, 'The game scene is not ready yet.', false);
+    }
+
+    if (!this.enemies.hasReleaseCandidate) {
+      return this.createDebugCommandResult(false, 'No enemy is waiting for release.', false, statusBeforeRelease);
+    }
+
+    if (!this.advanceBorderTimerUntilReleaseOpportunityForDebug()) {
+      return this.createDebugCommandResult(false, 'Could not force the border timer to the next release opportunity.', false);
+    }
+
+    const released = this.handleBorderTimerReleaseOpportunity();
+    this.enemies.syncFromRuntimeState();
+    this.vegetableBonus?.advanceOneSimulationTick(this.enemies.enemySystem);
+    this.vegetableBonus?.syncFromRuntimeState();
+    this.enemies.syncFromRuntimeState();
+
+    return this.createDebugCommandResult(
+      released,
+      released ? 'Released the next waiting enemy.' : 'The border timer completed, but no enemy was released.',
+      released,
+    );
+  }
+
+  private debugReleaseAllEnemies(): LadyBugDebugCommandResult {
+    if (!this.enemies) {
+      return this.createDebugCommandResult(false, 'The enemy system is not ready yet.', false);
+    }
+
+    let releasedEnemyCount = 0;
+
+    for (let safety = 0; safety < 4 && this.enemies.hasReleaseCandidate; safety++) {
+      const result = this.debugReleaseNextEnemy();
+
+      if (!result.ok || !result.releasedEnemy) {
+        break;
+      }
+
+      releasedEnemyCount += 1;
+    }
+
+    return this.createDebugCommandResult(
+      releasedEnemyCount > 0,
+      releasedEnemyCount > 0
+        ? `Released ${releasedEnemyCount} ${releasedEnemyCount > 1 ? 'enemies' : 'enemy'}.`
+        : 'No enemy was released.',
+      releasedEnemyCount > 0,
+      undefined,
+      releasedEnemyCount,
+    );
+  }
+
+  private advanceBorderTimerUntilReleaseOpportunityForDebug(): boolean {
+    if (!this.borderTimer) {
+      return false;
+    }
+
+    const timer = this.borderTimer.timer;
+    const maxTicksToNextRelease = Math.max(1, timer.tileCount * timer.ticksPerTile * 2 + timer.ticksPerTile + 1);
+
+    for (let tick = 0; tick < maxTicksToNextRelease; tick++) {
+      const stepResult = this.borderTimer.advanceOneSimulationTick();
+
+      if (stepResult.shouldReleaseEnemy) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private createDebugCommandResult(
+    ok: boolean,
+    message: string,
+    releasedEnemy: boolean,
+    status = this.createDebugStatus(),
+    releasedEnemyCount?: number,
+  ): LadyBugDebugCommandResult {
+    return {
+      ok,
+      message,
+      releasedEnemy,
+      releasedEnemyCount,
+      status,
+    };
+  }
+
+  private createDebugStatus(): LadyBugDebugStatus {
+    const enemySystem = this.enemies?.enemySystem;
+
+    return {
+      livesRemaining: this.livesRemaining,
+      score: this.scoreState.score,
+      waitingForAudioUnlock: this.isWaitingForAudioUnlockBeforeEntry,
+      playerEntryActive: this.hud?.isLifeEntryAnimationActive ?? false,
+      playerDeathActive: this.isPlayerDeathSequenceActive,
+      pickupPopupActive: this.pickupPopupState.isActive,
+      hasEnemyReleaseCandidate: this.enemies?.hasReleaseCandidate ?? false,
+      allEnemiesInMaze: enemySystem?.areAllEnemiesInMaze ?? false,
+      enemies: enemySystem?.monsters.map((monster): LadyBugDebugEnemyStatus => ({
+        id: monster.id,
+        runtimeState: monster.runtimeState,
+        direction: monsterDirectionName(monster.direction),
+        movementActive: monster.movementActive,
+        collisionActive: monster.collisionActive,
+        visibleInLair: monster.visibleInLair,
+        arcadePixelPos: { ...monster.arcadePixelPos },
+      })) ?? [],
+    };
+  }
+
   private syncHudFromGameState(): void {
     this.hud?.setScore(this.scoreState.score);
     this.hud?.setMultiplierStep(this.heartMultiplierState.step);
     this.hud?.setWordProgress(this.wordProgressState);
   }
 
-  private startPlayerEntryAnimation(options: { readonly waitForAudioUnlock?: boolean } = {}): void {
+  private startPlayerEntryAnimation(): void {
     this.player?.hide();
 
-    // Browsers may keep the audio context locked until the first user gesture.
-    // When that happens on the initial boot, delaying the entry animation keeps
-    // the jingle aligned with the HUD life leaving the reserve area instead of
-    // playing late after the player has already reached the maze. Later death
-    // respawns do not wait because the audio context is already unlocked.
-    if (options.waitForAudioUnlock && this.soundPlayer?.isAudioLocked()) {
-      this.isWaitingForAudioUnlockBeforeEntry = true;
-      this.soundPlayer.onceUnlocked(() => {
-        this.isWaitingForAudioUnlockBeforeEntry = false;
-        this.arcadeClock.reset();
-        this.startPlayerEntryAnimation();
-      });
-      return;
-    }
-
+    // The entry sequence must never wait on browser audio unlock. Some browsers
+    // keep the sound manager locked until a later user gesture, which used to
+    // freeze the whole board before the HUD life started travelling. If audio is
+    // still locked, GameplaySoundPlayer simply skips the jingle instead of
+    // letting it play late and out of sync.
     this.isWaitingForAudioUnlockBeforeEntry = false;
 
     const start = getPlayerStartCenter();
@@ -364,5 +664,21 @@ export class GameScene extends Phaser.Scene {
     if (!animationStarted) {
       this.player?.showAtStart();
     }
+  }
+}
+
+
+function monsterDirectionName(direction: MonsterDir): string {
+  switch (direction) {
+    case MONSTER_DIR.left:
+      return 'left';
+    case MONSTER_DIR.up:
+      return 'up';
+    case MONSTER_DIR.right:
+      return 'right';
+    case MONSTER_DIR.down:
+      return 'down';
+    default:
+      return 'none';
   }
 }

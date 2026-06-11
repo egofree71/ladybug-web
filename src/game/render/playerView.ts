@@ -13,7 +13,7 @@ const PLAYER_MOVE_UP_ANIMATION_KEY = 'player-move-up';
 const PLAYER_MOVE_DOWN_ANIMATION_KEY = 'player-move-down';
 const MOVE_RIGHT_ANIMATION_KEY = 'player-entry-move-right';
 const MOVE_UP_ANIMATION_KEY = 'player-entry-move-up';
-const DEATH_SPRITE_DEPTH = 100;
+const DEATH_SPRITE_DEPTH = 90;
 
 /**
  * Visual facade for the in-maze player sprite.
@@ -106,6 +106,8 @@ export class PlayerView {
 
     this.sprite.setVisible(false);
     this.deathSequenceState.start();
+    this.deathSprite.setDepth(DEATH_SPRITE_DEPTH);
+    this.deathSprite.scene.children.bringToTop(this.deathSprite);
     this.syncDeathSpriteFromState();
   }
 
