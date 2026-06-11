@@ -21,6 +21,7 @@ export const ASSET_KEYS = {
   enemyLevel7: 'enemy-level-7',
   enemyLevel8: 'enemy-level-8',
   collectibles: 'collectibles',
+  vegetables: 'vegetables',
   collectibleLayout: 'collectible-layout',
   mazeLayout: 'maze-layout',
   hudArcadeFont26: 'hud-arcade-font-26',
@@ -33,6 +34,7 @@ export const ASSET_KEYS = {
   deathSequenceSound: 'death-sequence-sound',
   enemyDeathSound: 'enemy-death-sound',
   enemyExitWarningSound: 'enemy-exit-warning-sound',
+  vegetablePickupSound: 'vegetable-pickup-sound',
 } as const;
 
 export function assetUrl(relativePath: string): string {

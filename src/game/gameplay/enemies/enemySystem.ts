@@ -35,6 +35,7 @@ export class EnemySystem {
   private readonly basePreferenceSystem: EnemyBasePreferenceSystem;
   private readonly chaseSystem: EnemyChaseSystem;
   private readonly monstersValue: MonsterEntity[] = [];
+  private readonly movementActiveBeforeFreezeByMonsterId = new Map<number, boolean>();
 
   public constructor(
     mazeGrid: MazeGrid,
@@ -59,6 +60,12 @@ export class EnemySystem {
 
   public get collisionActiveMonsters(): readonly MonsterEntity[] {
     return this.monstersValue.filter((monster) => monster.collisionActive);
+  }
+
+  public get areAllEnemiesInMaze(): boolean {
+    return this.monstersValue.length > 0 && this.monstersValue.every((monster) =>
+      monster.runtimeState === MONSTER_RUNTIME_STATE.inMaze && monster.collisionActive,
+    );
   }
 
   public get hasReleaseCandidate(): boolean {
@@ -90,6 +97,7 @@ export class EnemySystem {
   }
 
   public resetAfterPlayerDeath(): void {
+    this.restoreFrozenEnemyMovement();
     this.basePreferenceSystem.reset();
     this.chaseSystem.reset();
 
@@ -98,6 +106,39 @@ export class EnemySystem {
     }
 
     this.updateWaitingLairVisibility();
+  }
+
+  public freezeActiveEnemyMovement(): void {
+    if (this.movementActiveBeforeFreezeByMonsterId.size === 0) {
+      for (const monster of this.monstersValue) {
+        this.movementActiveBeforeFreezeByMonsterId.set(monster.id, monster.movementActive);
+      }
+    }
+
+    for (const monster of this.monstersValue) {
+      if (monster.runtimeState === MONSTER_RUNTIME_STATE.inMaze && monster.collisionActive) {
+        monster.movementActive = false;
+      }
+    }
+  }
+
+  public restoreFrozenEnemyMovement(): void {
+    if (this.movementActiveBeforeFreezeByMonsterId.size === 0) {
+      return;
+    }
+
+    for (const monster of this.monstersValue) {
+      if (monster.runtimeState !== MONSTER_RUNTIME_STATE.inMaze || !monster.collisionActive) {
+        continue;
+      }
+
+      const wasMovementActive = this.movementActiveBeforeFreezeByMonsterId.get(monster.id);
+      if (wasMovementActive !== undefined) {
+        monster.movementActive = wasMovementActive;
+      }
+    }
+
+    this.movementActiveBeforeFreezeByMonsterId.clear();
   }
 
   public tryReleaseNextEnemy(): boolean {
@@ -178,6 +219,7 @@ export class EnemySystem {
     }
 
     onEnemyKilledBySkull?.();
+    this.movementActiveBeforeFreezeByMonsterId.delete(monster.id);
     prepareMonsterInLair(monster);
     this.updateWaitingLairVisibility();
   }

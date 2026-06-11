@@ -23,7 +23,10 @@ import { createRotatingGates, type GateFieldView } from '../render/gateView';
 import { getPlayerStartCenter } from '../layout/playerLayout';
 import { PlayerView } from '../render/playerView';
 import { createEnemies, type EnemyFieldView } from '../render/enemyView';
+import { createVegetableBonus, type VegetableBonusFieldView } from '../render/vegetableBonusView';
 import { enemyPlayerCollisionActive } from '../gameplay/enemies/enemyMovementAi';
+import { MONSTER_DIR, type MonsterDir } from '../gameplay/enemies/monsterDirection';
+import { installLadyBugDebugConsole, type LadyBugDebugCommandResult, type LadyBugDebugEnemyStatus, type LadyBugDebugStatus } from '../debug/ladyBugDebugConsole';
 
 /**
  * First gameplay scene for the Phaser remake.
@@ -44,6 +47,7 @@ export class GameScene extends Phaser.Scene {
   private gateField?: GateFieldView;
   private borderTimer?: MazeBorderTimerView;
   private enemies?: EnemyFieldView;
+  private vegetableBonus?: VegetableBonusFieldView;
   private hud?: HudView;
   private pickupPopupView?: CollectiblePickupPopupView;
   private player?: PlayerView;
@@ -53,6 +57,7 @@ export class GameScene extends Phaser.Scene {
   private isWaitingForAudioUnlockBeforeEntry = false;
   private livesRemaining = 3;
   private isPlayerDeathSequenceActive = false;
+  private uninstallDebugConsole?: () => void;
 
   public constructor() {
     super('GameScene');
@@ -72,6 +77,11 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.load.spritesheet(ASSET_KEYS.collectibles, assetUrl('assets/sprites/props/collectibles.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.vegetables, assetUrl('assets/sprites/props/vegetables.png'), {
       frameWidth: 64,
       frameHeight: 64,
     });
@@ -156,6 +166,7 @@ export class GameScene extends Phaser.Scene {
     this.load.audio(ASSET_KEYS.deathSequenceSound, assetUrl('assets/audio/death_sequence.wav'));
     this.load.audio(ASSET_KEYS.enemyDeathSound, assetUrl('assets/audio/death_enemy.wav'));
     this.load.audio(ASSET_KEYS.enemyExitWarningSound, assetUrl('assets/audio/enemy_exit.wav'));
+    this.load.audio(ASSET_KEYS.vegetablePickupSound, assetUrl('assets/audio/vegetable_pickup.wav'));
   }
 
   public create(): void {
@@ -182,6 +193,7 @@ export class GameScene extends Phaser.Scene {
     this.collectibleField = createLevelOneCollectibles(this, this.collectibleColorCycle.currentColor);
     this.gateField = createRotatingGates(this);
     this.enemies = createEnemies(this, mazeGrid, this.gateField.gateSystem, 1);
+    this.vegetableBonus = createVegetableBonus(this, 1);
 
     this.pickupPopupView = new CollectiblePickupPopupView(this);
     this.player = new PlayerView(this);
@@ -194,6 +206,7 @@ export class GameScene extends Phaser.Scene {
     this.hud = createHud(this);
     this.hud.setLives(this.livesRemaining);
     this.syncHudFromGameState();
+    this.installDebugConsole();
     this.startPlayerEntryAnimation({ waitForAudioUnlock: true });
   }
 
@@ -223,8 +236,10 @@ export class GameScene extends Phaser.Scene {
 
     this.gateField?.gateSystem.advanceOneTick();
     this.advanceBorderTimerOneTick();
+    this.advanceVegetableBonusOneTick();
     this.advanceEnemiesOneTick();
     this.advancePlayerOneTick();
+    this.tryConsumeVegetableBonus();
     this.checkPlayerEnemyCollisions();
 
     if (this.collectibleColorCycle.advanceOneTick()) {
@@ -250,8 +265,17 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private handleBorderTimerReleaseOpportunity(): void {
-    this.enemies?.tryReleaseNextEnemy();
+  private handleBorderTimerReleaseOpportunity(): boolean {
+    return this.enemies?.tryReleaseNextEnemy() ?? false;
+  }
+
+  private advanceVegetableBonusOneTick(): void {
+    if (!this.enemies) {
+      return;
+    }
+
+    this.vegetableBonus?.advanceOneSimulationTick(this.enemies.enemySystem);
+    this.enemies.syncFromRuntimeState();
   }
 
   private advanceEnemiesOneTick(): void {
@@ -289,6 +313,26 @@ export class GameScene extends Phaser.Scene {
         break;
       }
     }
+  }
+
+  private tryConsumeVegetableBonus(): void {
+    if (!this.playerMovement || !this.enemies || !this.vegetableBonus || this.isPlayerDeathSequenceActive) {
+      return;
+    }
+
+    const result = this.vegetableBonus.tryConsumeAtPlayerArcadePosition(
+      this.playerMovement.arcadePosition,
+      this.enemies.enemySystem,
+    );
+
+    if (!result.consumed) {
+      return;
+    }
+
+    this.soundPlayer?.playVegetablePickup();
+    this.scoreState.addPoints(result.scoreDelta);
+    this.hud?.setScore(this.scoreState.score);
+    this.enemies.syncFromRuntimeState();
   }
 
   private playGateSoundsForAcceptedPushes(): void {
@@ -368,6 +412,7 @@ export class GameScene extends Phaser.Scene {
     this.pickupPopupState.clear();
     this.pickupPopupView?.clear();
     this.enemies?.hideAllViewsForPlayerDeathSequence();
+    this.vegetableBonus?.resetRuntimeState(this.enemies?.enemySystem);
 
     this.livesRemaining = Math.max(0, this.livesRemaining - 1);
     this.hud?.setCurrentLifeInMaze(false);
@@ -387,6 +432,7 @@ export class GameScene extends Phaser.Scene {
     this.pickupPopupState.clear();
     this.pickupPopupView?.clear();
     this.collectibleField?.clearSkulls();
+    this.vegetableBonus?.resetRuntimeState(this.enemies?.enemySystem);
 
     this.livesRemaining = Math.max(0, this.livesRemaining - 1);
     this.hud?.setCurrentLifeInMaze(false);
@@ -415,6 +461,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.enemies?.resetAfterPlayerDeath();
+    this.vegetableBonus?.resetRuntimeState(this.enemies?.enemySystem);
     this.playerMovement?.resetToStartCell();
     this.borderTimer?.resetTimer();
     this.startPlayerEntryAnimation();
@@ -445,6 +492,146 @@ export class GameScene extends Phaser.Scene {
 
     this.pickupPopupView?.clear();
     this.player?.show();
+  }
+
+
+  private installDebugConsole(): void {
+    this.uninstallDebugConsole?.();
+
+    this.uninstallDebugConsole = installLadyBugDebugConsole({
+      status: () => this.createDebugStatus(),
+      releaseNextEnemy: () => this.debugReleaseNextEnemy(),
+      releaseAllEnemies: () => this.debugReleaseAllEnemies(),
+      runtime: () => ({
+        scene: this,
+        borderTimer: this.borderTimer?.timer,
+        enemies: this.enemies?.enemySystem,
+        vegetableBonus: this.vegetableBonus,
+        playerMovement: this.playerMovement,
+        collectibleField: this.collectibleField,
+        gateSystem: this.gateField?.gateSystem,
+      }),
+    });
+
+    this.events.once('shutdown', () => {
+      this.uninstallDebugConsole?.();
+      this.uninstallDebugConsole = undefined;
+    });
+  }
+
+  private debugReleaseNextEnemy(): LadyBugDebugCommandResult {
+    const statusBeforeRelease = this.createDebugStatus();
+
+    if (!this.borderTimer || !this.enemies) {
+      return this.createDebugCommandResult(false, 'The game scene is not ready yet.', false);
+    }
+
+    if (!this.enemies.hasReleaseCandidate) {
+      return this.createDebugCommandResult(false, 'No enemy is waiting for release.', false, statusBeforeRelease);
+    }
+
+    if (!this.advanceBorderTimerUntilReleaseOpportunityForDebug()) {
+      return this.createDebugCommandResult(false, 'Could not force the border timer to the next release opportunity.', false);
+    }
+
+    const released = this.handleBorderTimerReleaseOpportunity();
+    this.enemies.syncFromRuntimeState();
+    this.vegetableBonus?.advanceOneSimulationTick(this.enemies.enemySystem);
+    this.vegetableBonus?.syncFromRuntimeState();
+    this.enemies.syncFromRuntimeState();
+
+    return this.createDebugCommandResult(
+      released,
+      released ? 'Released the next waiting enemy.' : 'The border timer completed, but no enemy was released.',
+      released,
+    );
+  }
+
+  private debugReleaseAllEnemies(): LadyBugDebugCommandResult {
+    if (!this.enemies) {
+      return this.createDebugCommandResult(false, 'The enemy system is not ready yet.', false);
+    }
+
+    let releasedEnemyCount = 0;
+
+    for (let safety = 0; safety < 4 && this.enemies.hasReleaseCandidate; safety++) {
+      const result = this.debugReleaseNextEnemy();
+
+      if (!result.ok || !result.releasedEnemy) {
+        break;
+      }
+
+      releasedEnemyCount += 1;
+    }
+
+    return this.createDebugCommandResult(
+      releasedEnemyCount > 0,
+      releasedEnemyCount > 0
+        ? `Released ${releasedEnemyCount} ${releasedEnemyCount > 1 ? 'enemies' : 'enemy'}.`
+        : 'No enemy was released.',
+      releasedEnemyCount > 0,
+      undefined,
+      releasedEnemyCount,
+    );
+  }
+
+  private advanceBorderTimerUntilReleaseOpportunityForDebug(): boolean {
+    if (!this.borderTimer) {
+      return false;
+    }
+
+    const timer = this.borderTimer.timer;
+    const maxTicksToNextRelease = Math.max(1, timer.tileCount * timer.ticksPerTile * 2 + timer.ticksPerTile + 1);
+
+    for (let tick = 0; tick < maxTicksToNextRelease; tick++) {
+      const stepResult = this.borderTimer.advanceOneSimulationTick();
+
+      if (stepResult.shouldReleaseEnemy) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private createDebugCommandResult(
+    ok: boolean,
+    message: string,
+    releasedEnemy: boolean,
+    status = this.createDebugStatus(),
+    releasedEnemyCount?: number,
+  ): LadyBugDebugCommandResult {
+    return {
+      ok,
+      message,
+      releasedEnemy,
+      releasedEnemyCount,
+      status,
+    };
+  }
+
+  private createDebugStatus(): LadyBugDebugStatus {
+    const enemySystem = this.enemies?.enemySystem;
+
+    return {
+      livesRemaining: this.livesRemaining,
+      score: this.scoreState.score,
+      waitingForAudioUnlock: this.isWaitingForAudioUnlockBeforeEntry,
+      playerEntryActive: this.hud?.isLifeEntryAnimationActive ?? false,
+      playerDeathActive: this.isPlayerDeathSequenceActive,
+      pickupPopupActive: this.pickupPopupState.isActive,
+      hasEnemyReleaseCandidate: this.enemies?.hasReleaseCandidate ?? false,
+      allEnemiesInMaze: enemySystem?.areAllEnemiesInMaze ?? false,
+      enemies: enemySystem?.monsters.map((monster): LadyBugDebugEnemyStatus => ({
+        id: monster.id,
+        runtimeState: monster.runtimeState,
+        direction: monsterDirectionName(monster.direction),
+        movementActive: monster.movementActive,
+        collisionActive: monster.collisionActive,
+        visibleInLair: monster.visibleInLair,
+        arcadePixelPos: { ...monster.arcadePixelPos },
+      })) ?? [],
+    };
   }
 
   private syncHudFromGameState(): void {
@@ -486,5 +673,21 @@ export class GameScene extends Phaser.Scene {
     if (!animationStarted) {
       this.player?.showAtStart();
     }
+  }
+}
+
+
+function monsterDirectionName(direction: MonsterDir): string {
+  switch (direction) {
+    case MONSTER_DIR.left:
+      return 'left';
+    case MONSTER_DIR.up:
+      return 'up';
+    case MONSTER_DIR.right:
+      return 'right';
+    case MONSTER_DIR.down:
+      return 'down';
+    default:
+      return 'none';
   }
 }

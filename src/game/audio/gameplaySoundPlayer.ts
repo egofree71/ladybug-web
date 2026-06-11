@@ -7,6 +7,7 @@ const JINGLE_VOLUME = 0.85;
 const DEATH_VOLUME = 0.85;
 const ENEMY_DEATH_VOLUME = 0.85;
 const ENEMY_EXIT_WARNING_VOLUME = 0.85;
+const VEGETABLE_PICKUP_VOLUME = 0.85;
 
 /**
  * Centralized non-positional sound facade for the current arcade board.
@@ -83,6 +84,11 @@ export class GameplaySoundPlayer {
   /** Warning effect used shortly before a waiting enemy exits the lair. */
   public playEnemyExitWarning(): void {
     this.restart(ASSET_KEYS.enemyExitWarningSound, ENEMY_EXIT_WARNING_VOLUME);
+  }
+
+  /** Short effect used when the central vegetable bonus is consumed. */
+  public playVegetablePickup(): void {
+    this.playStackable(ASSET_KEYS.vegetablePickupSound, VEGETABLE_PICKUP_VOLUME);
   }
 
   private playStackable(key: string, volume: number): void {
