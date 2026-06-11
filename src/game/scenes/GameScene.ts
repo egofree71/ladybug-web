@@ -3,27 +3,33 @@ import { ASSET_KEYS, assetUrl } from '../assets';
 import { MAZE } from '../layout/screenLayout';
 import { CollectibleColorCycle } from '../gameplay/collectibles/collectibleColorCycle';
 import { FixedArcadeClock } from '../gameplay/timing/fixedArcadeClock';
+import { MazeGrid } from '../gameplay/maze/mazeGrid';
+import { PlayerInputState } from '../gameplay/player/playerInputState';
+import { PlayerMovementMotor } from '../gameplay/player/playerMovementMotor';
+import { PLAYER_LAYOUT } from '../layout/playerLayout';
 import { createHud, type HudView } from '../render/hudView';
 import { createMazeBorderTimer } from '../render/mazeBorderTimerView';
 import { createLevelOneCollectibles, type CollectibleFieldView } from '../render/collectibleView';
-import { createRotatingGates } from '../render/gateView';
+import { createRotatingGates, type GateFieldView } from '../render/gateView';
 import { getPlayerStartCenter } from '../layout/playerLayout';
 import { PlayerView } from '../render/playerView';
 
 /**
- * First playable-screen shell for the Phaser remake.
+ * First gameplay scene for the Phaser remake.
  *
- * The scene now owns a small fixed-step gameplay loop so visual timers can be
- * validated before player movement and enemies are added. The collectible color
- * cycle is advanced from that fixed loop and remains separate from the maze
- * border / enemy-release timer that will be implemented in a later branch.
+ * Player movement, collectible colors, and gate timers are advanced from the
+ * fixed-step clock. Phaser's display update cadence only decides when the most
+ * recent simulation state is rendered; it does not directly set gameplay speed.
  */
 export class GameScene extends Phaser.Scene {
   private readonly arcadeClock = new FixedArcadeClock();
   private readonly collectibleColorCycle = new CollectibleColorCycle();
   private collectibleField?: CollectibleFieldView;
+  private gateField?: GateFieldView;
   private hud?: HudView;
   private player?: PlayerView;
+  private playerInput?: PlayerInputState;
+  private playerMovement?: PlayerMovementMotor;
 
   public constructor() {
     super('GameScene');
@@ -48,6 +54,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.load.json(ASSET_KEYS.collectibleLayout, assetUrl('assets/data/collectibles_layout.json'));
+    this.load.json(ASSET_KEYS.mazeLayout, assetUrl('assets/data/maze.json'));
 
     this.load.spritesheet(ASSET_KEYS.ladybug, assetUrl('assets/sprites/player/ladybug_spritesheet.png'), {
       frameWidth: 64,
@@ -70,6 +77,8 @@ export class GameScene extends Phaser.Scene {
     this.arcadeClock.reset();
     this.collectibleColorCycle.resetToBlue();
 
+    const mazeGrid = MazeGrid.fromDataFile(this.cache.json.get(ASSET_KEYS.mazeLayout));
+
     this.add
       .image(MAZE.imageX, MAZE.imageY, ASSET_KEYS.mazeBackground)
       .setOrigin(0, 0)
@@ -77,9 +86,15 @@ export class GameScene extends Phaser.Scene {
 
     createMazeBorderTimer(this);
     this.collectibleField = createLevelOneCollectibles(this, this.collectibleColorCycle.currentColor);
-    createRotatingGates(this);
+    this.gateField = createRotatingGates(this);
 
     this.player = new PlayerView(this);
+    this.playerInput = new PlayerInputState(this);
+    this.playerMovement = new PlayerMovementMotor(
+      mazeGrid,
+      this.gateField.gateSystem,
+      PLAYER_LAYOUT.startCell,
+    );
     this.hud = createHud(this);
     this.startPlayerEntryAnimation();
   }
@@ -94,9 +109,23 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    this.gateField?.gateSystem.advanceOneTick();
+
     if (this.collectibleColorCycle.advanceOneTick()) {
       this.collectibleField?.applyColorCycle(this.collectibleColorCycle.currentColor);
     }
+
+    this.advancePlayerOneTick();
+    this.gateField?.syncFromRuntimeState();
+  }
+
+  private advancePlayerOneTick(): void {
+    if (this.playerMovement === undefined || this.playerInput === undefined) {
+      return;
+    }
+
+    const stepResult = this.playerMovement.step(this.playerInput.readPressedDirection());
+    this.player?.applyMovementStep(stepResult);
   }
 
   private startPlayerEntryAnimation(): void {

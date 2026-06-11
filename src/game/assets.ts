@@ -12,6 +12,7 @@ export const ASSET_KEYS = {
   ladybug: 'ladybug',
   collectibles: 'collectibles',
   collectibleLayout: 'collectible-layout',
+  mazeLayout: 'maze-layout',
   hudArcadeFont26: 'hud-arcade-font-26',
   hudArcadeFont28: 'hud-arcade-font-28',
 } as const;

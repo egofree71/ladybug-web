@@ -2,7 +2,7 @@
 
 This document describes the current state of the early Phaser web remake of Lady Bug.
 
-The current implementation focuses on rendering the level-1 game screen, the first collectible systems, and the initial player entry sequence. It is still a visual/gameplay foundation branch: player movement, collisions, enemies and real scoring are intentionally left for later work.
+The current implementation focuses on the level-1 game screen, the first collectible systems, the initial player entry sequence, and the first playable player movement pass. Enemies, collectible pickup and real scoring are intentionally left for later work.
 
 ## Current Scope
 
@@ -23,19 +23,20 @@ The current branch implements:
 - a global color cycle for hearts and letters;
 - a fixed-step gameplay timing helper that is independent from the browser display refresh rate;
 - the initial HUD-to-maze player entry animation for level 1;
-- a static in-maze player sprite shown at the level-start position after the entry animation finishes.
+- a static in-maze player sprite shown at the level-start position after the entry animation finishes;
+- keyboard-driven player movement advanced from fixed simulation ticks;
+- static maze collision checks based on `maze.json`;
+- arcade-style turn windows and assisted turns ported from the Godot movement motor;
+- interactive rotating gates with logical blocking state and short turning visuals.
 
 The current branch does not implement yet:
 
-- player movement;
-- player/maze collisions;
 - collectible pickup;
 - score updates;
 - `SPECIAL` / `EXTRA` word completion;
 - multiplier activation from blue hearts;
 - enemies;
 - enemy spawning;
-- interactive gate rotation;
 - the real border timer animation;
 - level transitions.
 
@@ -53,7 +54,10 @@ Important points taken from Godot:
 - the HUD is rendered in a `CanvasLayer`, so it stays in screen coordinates and does not receive the `Level` scene offset;
 - the collectible color cycle is separate from the maze-border / enemy-release timer;
 - the player start cell is `Vector2i(5, 8)` in `Level.tscn`;
-- the HUD life-entry animation is owned by the HUD, while the final in-maze player sprite uses the level coordinate system.
+- the HUD life-entry animation is owned by the HUD, while the final in-maze player sprite uses the level coordinate system;
+- player movement uses integer arcade-pixel coordinates and one-pixel committed movement segments;
+- static walls and rotating gates are evaluated separately, matching the Godot playfield collision split;
+- gates toggle their logical blocking axis immediately when pushed, then briefly display a diagonal turning frame.
 
 This coordinate-space split matters: the HUD and the playfield do not use the same origin in Godot.
 
@@ -145,23 +149,34 @@ Each gate contains:
 - an identifier;
 - an `x` position;
 - a `y` position;
+- a logical pivot copied from `Level.tscn`;
 - an orientation: `horizontal` or `vertical`.
 
-For now, this data is only used to display the gates. Later, it can also become the basis for the logical gate state and collision rules.
+The same data is now used both by the renderer and by the gate runtime state.
+
+### `src/game/layout/playfieldCoordinates.ts`
+
+Central coordinate converter for gameplay actors.
+
+Responsibilities:
+
+- mirror `LevelCoordinateSystem.cs`;
+- convert logical cells to arcade-pixel anchors;
+- convert arcade-pixel positions back to logical cells;
+- convert gate pivots to arcade pixels;
+- convert arcade-pixel positions and deltas to Phaser screen pixels.
+
+Gameplay movement must use these conversions instead of measuring from the visible maze image, because Godot places actors relative to the Maze node position, not the visible image top-left.
 
 ### `src/game/layout/playerLayout.ts`
 
-Contains the initial player placement constants copied from the Godot remake.
+Contains the player placement helpers copied from the Godot remake.
 
 Responsibilities:
 
 - define the level-1 start cell;
-- mirror the Godot gameplay anchor used by `LevelCoordinateSystem.cs`;
-- apply the player render offset from `PlayerMovementTuning.cs`;
-- return the final player sprite center for the start position.
-
-This layout deliberately does not use the collectible grid origin, because Godot
-places actors relative to the Maze node position, not the visible image top-left.
+- return the HUD-entry target position;
+- convert the player movement motor arcade-pixel state into a rendered sprite center using the current render-offset direction.
 
 ### `src/game/layout/collectibleLayout.ts`
 
@@ -245,6 +260,56 @@ blue -> red -> yellow -> blue
 
 This cycle is intentionally independent from the maze-border / enemy-release timer.
 
+### `src/game/gameplay/maze/mazeGrid.ts`
+
+Runtime representation of `maze.json`.
+
+Responsibilities:
+
+- load the 11 x 11 logical maze;
+- expose per-cell movement checks;
+- evaluate one arcade-pixel step with a caller-provided collision lead;
+- report whether the step stays in the current cell, crosses into another cell, or hits a fixed wall.
+
+### `src/game/gameplay/playfield/playfieldCollision.ts`
+
+Combines static maze walls with the dynamic rotating-gate overlay.
+
+Responsibilities:
+
+- evaluate fixed-wall collisions with the player static collision probe;
+- evaluate rotating-gate contact with the shorter gate-contact probe;
+- detect gate blocks both at the direct probe and when crossing a logical cell boundary;
+- report whether a step is allowed, blocked by a fixed wall, or blocked by a pushable gate.
+
+### `src/game/gameplay/gates/`
+
+Runtime rotating-gate model.
+
+Responsibilities:
+
+- build gate states from `gateLayout.ts`;
+- look up gates by id or pivot;
+- detect whether a gate blocks one movement axis;
+- accept player pushes when possible;
+- toggle the logical gate state immediately on accepted push;
+- keep the short visual turning state for fixed simulation ticks.
+
+### `src/game/gameplay/player/`
+
+Player input and movement subsystem.
+
+Responsibilities:
+
+- keep last-pressed-wins keyboard input state;
+- move the player in integer arcade pixels;
+- preserve short-tap movement context;
+- apply rail snapping when starting or resuming movement;
+- generate turn-window maps from `maze.json`;
+- apply arcade-style turn windows and assisted turns;
+- evaluate each committed pixel segment against fixed walls and rotating gates;
+- push gates through the same movement step when contact is valid.
+
 ### `src/game/gameplay/timing/fixedArcadeClock.ts`
 
 Fixed-step timing helper for gameplay systems.
@@ -270,11 +335,12 @@ View responsible for rendering gates.
 Responsibilities:
 
 - iterate over `GATE_DEFINITIONS`;
-- choose the spritesheet frame based on the gate orientation;
-- create Phaser sprites;
-- set their display depth.
+- create the runtime `GateSystem`;
+- create Phaser sprites for all gate ids;
+- choose the stable or diagonal spritesheet frame from the current runtime state;
+- resynchronize sprites after fixed simulation ticks.
 
-This file does not contain rotation logic yet. That is intentional: interactive gate rotation will be handled in a separate branch.
+The gameplay decision still lives in `src/game/gameplay/gates/`; this view only reflects that state visually.
 
 ### `src/game/render/mazeBorderTimerView.ts`
 
@@ -316,16 +382,17 @@ The HUD starts the travelling ladybug from the rightmost available life icon, th
 
 ### `src/game/render/playerView.ts`
 
-View responsible for the initial player sprite and the entry animation frame setup.
+View responsible for the in-maze player sprite and the entry animation frame setup.
 
 Responsibilities:
 
 - create the hidden in-maze player sprite at the level-start position;
-- show the static player sprite after the HUD entry animation finishes;
-- define the entry movement animations used by the temporary HUD sprite.
+- show the player after the HUD entry animation finishes;
+- define the entry movement animations used by the temporary HUD sprite;
+- apply movement-motor positions to the rendered sprite;
+- switch and flip the sprite animation according to the current facing direction.
 
-This file does not implement player movement yet. It only establishes the correct
-start placement and the visual frame sequences used by the entry animation.
+The file does not own movement rules. It receives arcade-pixel movement results from the player movement motor and turns them into screen coordinates.
 
 ### `src/game/render/collectibleView.ts`
 
@@ -364,13 +431,13 @@ Responsibilities:
 - display the maze background;
 - create the border timer preview;
 - create the collectible field;
-- create the rotating gates;
+- create the rotating gates and their runtime state;
 - create the HUD;
-- create the initial player view;
+- create the player view, input state and movement motor;
 - start the HUD-to-maze player entry animation;
 - run the fixed-step clock from Phaser's variable `update()` callback;
 - advance the player entry animation from fixed simulation ticks;
-- advance the collectible color cycle from fixed simulation ticks once the entry animation is finished.
+- advance gate timers, collectible colors and player movement from fixed simulation ticks once the entry animation is finished.
 
 The scene orchestrates the current systems, but it should not become a large gameplay class. Later branches should continue moving dedicated logic into focused modules.
 
@@ -380,6 +447,7 @@ The assets used by the current implementation are in `public/assets`:
 
 ```text
 public/assets/data/collectibles_layout.json
+public/assets/data/maze.json
 public/assets/fonts/PressStart2P-Regular.ttf
 public/assets/fonts/hud_arcade_font_26.png
 public/assets/fonts/hud_arcade_font_28.png
@@ -425,6 +493,8 @@ Current rule:
 - `FixedArcadeClock` uses elapsed milliseconds and fixed simulation steps;
 - the collectible color cycle is separate from the future border timer / enemy-release cycle;
 - the player entry movement is advanced by the same fixed simulation ticks;
+- player movement is advanced by fixed simulation ticks and one-pixel arcade movement segments;
+- gate turning timers are advanced by fixed simulation ticks;
 - the collectible color cycle is paused while the entry animation is active, matching the Godot flow where gameplay is frozen during the life-entry sequence.
 
 This separation is important because earlier web projects showed that frame-rate-dependent movement can behave differently on mobile browsers and desktop browsers.
@@ -457,11 +527,8 @@ To avoid deploying technical documents when testing the game:
 After this branch is validated, the next branches could be:
 
 ```text
-feature/player-entry-spawn
-feature/player-grid-movement
 feature/collectible-pickup
 feature/scoring-hud
-feature/gate-rotation
 feature/border-timer-animation
 feature/enemy-spawn
 feature/enemy-movement
@@ -476,7 +543,9 @@ A few rules to keep for the next steps:
 - do not fix positions only by eye from a scaled screenshot;
 - use `?native=1` for pixel-perfect measurements;
 - keep placement constants in `screenLayout.ts`;
-- keep gate data in `gateLayout.ts`;
+- keep gate authoring data in `gateLayout.ts`;
+- keep gate runtime logic in `src/game/gameplay/gates/`;
+- keep player movement logic in `src/game/gameplay/player/`;
 - keep collectible layout constants in `collectibleLayout.ts`;
 - keep collectible rules in `src/game/gameplay/collectibles/`;
 - keep browser-frame timing separate from gameplay timing;
