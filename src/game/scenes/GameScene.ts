@@ -207,7 +207,7 @@ export class GameScene extends Phaser.Scene {
     this.hud.setLives(this.livesRemaining);
     this.syncHudFromGameState();
     this.installDebugConsole();
-    this.startPlayerEntryAnimation({ waitForAudioUnlock: true });
+    this.startPlayerEntryAnimation();
   }
 
   public override update(_time: number, delta: number): void {
@@ -215,10 +215,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   private runOneSimulationTick(): void {
-    if (this.isWaitingForAudioUnlockBeforeEntry) {
-      return;
-    }
-
     if (this.hud?.isLifeEntryAnimationActive) {
       this.hud.advanceLifeEntryAnimationOneTick();
       return;
@@ -640,24 +636,14 @@ export class GameScene extends Phaser.Scene {
     this.hud?.setWordProgress(this.wordProgressState);
   }
 
-  private startPlayerEntryAnimation(options: { readonly waitForAudioUnlock?: boolean } = {}): void {
+  private startPlayerEntryAnimation(): void {
     this.player?.hide();
 
-    // Browsers may keep the audio context locked until the first user gesture.
-    // When that happens on the initial boot, delaying the entry animation keeps
-    // the jingle aligned with the HUD life leaving the reserve area instead of
-    // playing late after the player has already reached the maze. Later death
-    // respawns do not wait because the audio context is already unlocked.
-    if (options.waitForAudioUnlock && this.soundPlayer?.isAudioLocked()) {
-      this.isWaitingForAudioUnlockBeforeEntry = true;
-      this.soundPlayer.onceUnlocked(() => {
-        this.isWaitingForAudioUnlockBeforeEntry = false;
-        this.arcadeClock.reset();
-        this.startPlayerEntryAnimation();
-      });
-      return;
-    }
-
+    // The entry sequence must never wait on browser audio unlock. Some browsers
+    // keep the sound manager locked until a later user gesture, which used to
+    // freeze the whole board before the HUD life started travelling. If audio is
+    // still locked, GameplaySoundPlayer simply skips the jingle instead of
+    // letting it play late and out of sync.
     this.isWaitingForAudioUnlockBeforeEntry = false;
 
     const start = getPlayerStartCenter();

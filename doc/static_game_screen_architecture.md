@@ -39,7 +39,7 @@ The current branch implements:
 - life count updates after death;
 - respawn from the HUD life icons when reserve lives remain;
 - gameplay sound effects for player entry, flower pickup, heart / letter pickup, gate rotation and player death;
-- first-entry audio-unlock handling so the initial HUD entry jingle stays synchronized with the player leaving the HUD.
+- non-blocking first-entry audio handling so browser audio locks cannot pause the HUD entry sequence.
 
 The current branch does not implement yet:
 
@@ -80,7 +80,7 @@ Important points taken from Godot:
 - the current collectible field and gate orientations are preserved after losing a life;
 - the player movement motor is reset to the start cell, then the next reserve life enters from the HUD;
 - gameplay sounds are owned by a central helper in Godot, with separate effects for flower pickup, heart / letter pickup, gate rotation, player entry and death sequence start;
-- browser audio may be locked until the first user gesture, so the initial entry animation waits for audio unlock instead of letting the jingle play late.
+- browser audio may be locked until the first user gesture, so the initial entry animation starts immediately and skips the jingle rather than letting it play late.
 
 This coordinate-space split matters: the HUD and the playfield do not use the same origin in Godot.
 
@@ -556,7 +556,7 @@ Responsibilities:
 - create the HUD;
 - create the player view, input state and movement motor;
 - start the HUD-to-maze player entry animation;
-- delay only the initial entry animation while browser audio is locked, so the entry jingle starts with the HUD life movement;
+- start the initial entry animation immediately even if browser audio is locked, so the game never appears frozen before the HUD life movement;
 - run the fixed-step clock from Phaser's variable `update()` callback;
 - advance the player entry animation from fixed simulation ticks;
 - advance gate timers, collectible colors and player movement from fixed simulation ticks once the entry animation is finished;
@@ -636,7 +636,7 @@ Current rule:
 - the collectible color cycle, gates and player movement are also paused while a heart / letter pickup popup is active;
 - the collectible color cycle, gates, player movement and pickup processing are paused while the player death sequence is active;
 - sound effects are triggered from gameplay events, not from render-frame callbacks;
-- the first HUD-to-maze entry can wait for browser audio unlock, while later respawns start immediately because audio is already available.
+- the first HUD-to-maze entry does not wait for browser audio unlock; if the sound manager is still locked, the entry jingle is skipped instead of played late.
 
 This separation is important because earlier web projects showed that frame-rate-dependent movement can behave differently on mobile browsers and desktop browsers.
 
@@ -691,6 +691,6 @@ A few rules to keep for the next steps:
 - keep word-progress rules in `src/game/gameplay/words/`;
 - keep browser-frame timing separate from gameplay timing;
 - keep gameplay sound routing in `src/game/audio/`;
-- keep first-boot browser audio-unlock handling explicit, so startup audio does not drift away from the entry animation;
+- keep first-boot browser audio-unlock handling explicit, so startup audio does not pause the entry animation or drift late;
 - avoid mixing rendering, game logic and dynamic state in the same file;
 - prefer short branches with clear commits.
