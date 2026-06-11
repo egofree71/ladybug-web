@@ -2,13 +2,15 @@
 
 This document describes the current state of the early Phaser web remake of Lady Bug.
 
-The current implementation focuses on the playable Phaser remake loop: collectibles, player movement, gates, enemy release, enemy movement, skull/death handling, vegetable bonus, scoring, lives, respawn and direct level progression with an arcade-style PART transition screen.
+The current implementation focuses on the playable Phaser remake loop and coarse arcade screen flow: Godot-style title screen, PART transition screen, collectibles, player movement, gates, enemy release, enemy movement, skull/death handling, vegetable bonus, scoring, lives, respawn, level progression and Godot-style GAME OVER return to title.
 
 ## Current Scope
 
 The current branch implements:
 
 - the Phaser canvas and scaling setup;
+- a Godot-style title screen with the official logo, animated preview enemies, animated ladybug prompt marker and pulsing `PRESS ANY KEY`;
+- title-screen start input before the playable level is created;
 - the maze background;
 - the animated outer border enemy-release timer;
 - the 20 green rotating gates, displayed in their initial state;
@@ -22,6 +24,7 @@ The current branch implements:
   - skulls;
 - a global color cycle for hearts and letters;
 - a fixed-step gameplay timing helper that is independent from the browser display refresh rate;
+- a pre-level `PART 1` transition screen after the title screen and before the first HUD-to-maze entry;
 - the initial HUD-to-maze player entry animation for level 1;
 - a static in-maze player sprite shown at the level-start position after the entry animation finishes;
 - keyboard-driven player movement advanced from fixed simulation ticks;
@@ -46,17 +49,17 @@ The current branch implements:
 - two-step between-level flow: frozen cleared board, then PART transition preview screen;
 - direct placement of the player at the start cell after a between-level transition;
 - debug console commands for enemy release and level-transition testing;
+- Godot-style `GAME OVER` overlay centered inside the maze-inner panel after the final life is lost;
+- automatic return to the title screen after the measured 128-frame game-over duration;
 - gameplay sound effects for player entry, flower pickup, heart / letter pickup, gate rotation, player death, enemy events, vegetable pickup and the maze-border timer tick;
 - non-blocking first-entry audio handling so browser audio locks cannot pause the HUD entry sequence.
 
 The current branch does not implement yet:
 
 - completed `SPECIAL` / `EXTRA` awards;
-- intro / title screen;
-- complete game-over screen after the last life is lost;
 - arcade-perfect refinements for every enemy movement edge case.
 
-The goal is now to validate the first playable multi-level loop before adding title/game-over flow and the remaining award rules.
+The goal is now to validate the first playable multi-level loop, the Godot-style screen flow and the remaining award rules.
 
 ## Reference Used
 
@@ -85,7 +88,7 @@ Important points taken from Godot:
 - the current collectible field and gate orientations are preserved after losing a life;
 - the player movement motor is reset to the start cell, then the next reserve life enters from the HUD;
 - gameplay sounds are owned by a central helper in Godot, with separate effects for flower pickup, heart / letter pickup, gate rotation, player entry and death sequence start;
-- browser audio may be locked until the first user gesture, so the initial entry animation starts immediately and skips the jingle rather than letting it play late.
+- browser audio may be locked until the first user gesture, so the title-screen start input acts as the normal unlock opportunity before the first PART panel and HUD entry sequence. If audio is still unavailable, the entry jingle is skipped rather than played late.
 
 This coordinate-space split matters: the HUD and the playfield do not use the same origin in Godot.
 
@@ -505,6 +508,31 @@ Responsibilities:
 
 The file does not own movement rules. It receives arcade-pixel movement results from the player movement motor and turns them into screen coordinates. The death sequence state is semantic and tick-based; the view only turns it into spritesheet frames and screen offsets.
 
+
+### `src/game/render/titleScreenView.ts`
+
+Godot-style title screen shown before the playable level scene is created.
+
+Responsibilities:
+
+- draw a full black background;
+- display the official `title_lady_bug_logo.png` centered at the Godot-authored position;
+- display the four decorative animated enemies above the logo using the same level/order/positions as `TitleScreen.cs`;
+- display an animated ladybug marker beside the start prompt;
+- pulse `PRESS ANY KEY` between white and light grey;
+- accept normal keyboard input, while ignoring Escape and debug function keys.
+
+### `src/game/render/gameOverView.ts`
+
+Godot-style GAME OVER overlay shown after the final life is lost.
+
+Responsibilities:
+
+- draw only the black maze-inner panel, leaving the HUD, purple maze frame and border context visible;
+- display `GAME OVER` centered in red-orange;
+- stay visible while `GameScene` counts the measured 128-frame game-over duration;
+- let `GameScene` return to the title screen after the delay instead of waiting for another input.
+
 ### `src/game/render/levelTransitionView.ts`
 
 Arcade-style PART screen shown between two playable boards.
@@ -606,6 +634,7 @@ public/assets/fonts/hud_arcade_font_16.png
 public/assets/fonts/hud_arcade_font_26.png
 public/assets/fonts/hud_arcade_font_28.png
 public/assets/images/maze_background.png
+public/assets/images/title_lady_bug_logo.png
 public/assets/audio/enter_maze.wav
 public/assets/audio/flower_pickup.wav
 public/assets/audio/collectible_pickup.wav
@@ -619,6 +648,7 @@ public/assets/audio/end_level.wav
 public/assets/sprites/player/ladybug_spritesheet.png
 public/assets/sprites/player/player_dead_red.png
 public/assets/sprites/player/player_dead_ghost.png
+public/assets/sprites/enemies/enemy_level1.png through enemy_level8.png
 public/assets/sprites/props/collectibles.png
 public/assets/sprites/props/maze_border_timer_tiles.png
 public/assets/sprites/props/rotating_gate.png
@@ -664,11 +694,13 @@ Current rule:
 - the collectible color cycle is paused while the entry animation is active, matching the Godot flow where gameplay is frozen during the life-entry sequence;
 - the collectible color cycle, gates and player movement are also paused while a heart / letter pickup popup is active;
 - the collectible color cycle, gates, player movement and pickup processing are paused while the player death sequence is active;
+- after the title screen, the first playable board is preceded by the same 120-tick PART transition screen used between later levels;
 - after a board clear, gameplay is paused for a 120-tick frozen-board end-level phase, then for a 120-tick PART transition screen;
 - sound effects are triggered from gameplay events or fixed simulation ticks, not from render-frame callbacks;
 - the audible maze-border timer cadence is reset with the visual timer when a board attempt restarts;
 - for level 1, the timer sound cadence matches the visible border cadence: one restart every 9 fixed simulation ticks;
-- the first HUD-to-maze entry does not wait for browser audio unlock; if the sound manager is still locked, the entry jingle is skipped instead of played late.
+- the title-screen start input is the expected browser audio-unlock moment; the first HUD-to-maze entry still does not block if the sound manager remains locked;
+- after the last life is lost, the GAME OVER overlay stays visible for 128 fixed ticks, then the scene returns to the title screen.
 
 This separation is important because earlier web projects showed that frame-rate-dependent movement can behave differently on mobile browsers and desktop browsers.
 
@@ -701,8 +733,6 @@ After this branch is validated, the next branches could focus on:
 
 ```text
 feature/special-extra-awards
-feature/game-over-screen
-feature/title-screen
 feature/enemy-movement-refinements
 ```
 

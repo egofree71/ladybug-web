@@ -7,6 +7,7 @@
  */
 export const ASSET_KEYS = {
   mazeBackground: 'maze-background',
+  titleLogo: 'title-logo',
   borderTimerTiles: 'border-timer-tiles',
   rotatingGate: 'rotating-gate',
   ladybug: 'ladybug',

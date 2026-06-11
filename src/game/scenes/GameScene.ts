@@ -26,6 +26,8 @@ import { PlayerView } from '../render/playerView';
 import { createEnemies, type EnemyFieldView } from '../render/enemyView';
 import { createVegetableBonus, type VegetableBonusFieldView } from '../render/vegetableBonusView';
 import { createLevelTransitionView, type LevelTransitionView } from '../render/levelTransitionView';
+import { createTitleScreenView, type TitleScreenView } from '../render/titleScreenView';
+import { createGameOverView, type GameOverView } from '../render/gameOverView';
 import { enemyPlayerCollisionActive } from '../gameplay/enemies/enemyMovementAi';
 import { MONSTER_DIR, type MonsterDir } from '../gameplay/enemies/monsterDirection';
 import {
@@ -43,6 +45,7 @@ interface LevelSetupOptions {
 
 const END_LEVEL_FREEZE_DURATION_TICKS = 120;
 const LEVEL_TRANSITION_SCREEN_DURATION_TICKS = 120;
+const GAME_OVER_DURATION_TICKS = 0x80;
 
 /**
  * First gameplay scene for the Phaser remake.
@@ -68,12 +71,19 @@ export class GameScene extends Phaser.Scene {
   private hud?: HudView;
   private pickupPopupView?: CollectiblePickupPopupView;
   private levelTransitionView?: LevelTransitionView;
+  private titleScreenView?: TitleScreenView;
+  private gameOverView?: GameOverView;
   private player?: PlayerView;
   private mazeGrid?: MazeGrid;
   private playerInput?: PlayerInputState;
   private playerMovement?: PlayerMovementMotor;
   private soundPlayer?: GameplaySoundPlayer;
   private isWaitingForAudioUnlockBeforeEntry = false;
+  private isGameStarted = false;
+  private isTitleScreenActive = false;
+  private isGameOverActive = false;
+  private gameOverTicksRemaining = 0;
+  private shouldUseHudEntryAnimationAfterTransition = false;
   private livesRemaining = 3;
   private isPlayerDeathSequenceActive = false;
   private isLevelAdvancePending = false;
@@ -91,6 +101,7 @@ export class GameScene extends Phaser.Scene {
 
   public preload(): void {
     this.load.image(ASSET_KEYS.mazeBackground, assetUrl('assets/images/maze_background.png'));
+    this.load.image(ASSET_KEYS.titleLogo, assetUrl('assets/images/title_lady_bug_logo.png'));
 
     this.load.spritesheet(ASSET_KEYS.borderTimerTiles, assetUrl('assets/sprites/props/maze_border_timer_tiles.png'), {
       frameWidth: 32,
@@ -200,6 +211,33 @@ export class GameScene extends Phaser.Scene {
   public create(): void {
     this.cameras.main.setRoundPixels(true);
     this.arcadeClock.reset();
+    this.soundPlayer = new GameplaySoundPlayer(this);
+    this.mazeGrid = MazeGrid.fromDataFile(this.cache.json.get(ASSET_KEYS.mazeLayout));
+    this.titleScreenView = createTitleScreenView(this);
+    this.gameOverView = createGameOverView(this);
+    this.installDebugConsole();
+    this.showTitleScreen();
+  }
+
+  private showTitleScreen(): void {
+    this.isGameStarted = false;
+    this.isTitleScreenActive = true;
+    this.isGameOverActive = false;
+    this.gameOverTicksRemaining = 0;
+    this.arcadeClock.reset();
+    this.titleScreenView?.show(() => this.startNewGameFromTitle());
+  }
+
+  private startNewGameFromTitle(): void {
+    this.titleScreenView?.hide();
+    this.isTitleScreenActive = false;
+    this.resetNewGameState();
+    this.createPlayfieldShell();
+    this.startInitialLevelTransitionScreen();
+  }
+
+  private resetNewGameState(): void {
+    this.arcadeClock.reset();
     this.currentLevelNumber = 1;
     this.collectibleColorCycle.resetToBlue();
     this.scoreState.reset();
@@ -207,6 +245,7 @@ export class GameScene extends Phaser.Scene {
     this.wordProgressState.reset();
     this.pickupPopupState.clear();
     this.livesRemaining = 3;
+    this.isGameStarted = true;
     this.isPlayerDeathSequenceActive = false;
     this.isLevelAdvancePending = false;
     this.isEndLevelFreezeActive = false;
@@ -216,9 +255,12 @@ export class GameScene extends Phaser.Scene {
     this.queuedNextLevelNumber = 0;
     this.queuedNextLevelSpawnPlan = undefined;
     this.isWaitingForAudioUnlockBeforeEntry = false;
-    this.soundPlayer = new GameplaySoundPlayer(this);
-    this.mazeGrid = MazeGrid.fromDataFile(this.cache.json.get(ASSET_KEYS.mazeLayout));
+    this.isGameOverActive = false;
+    this.gameOverTicksRemaining = 0;
+    this.shouldUseHudEntryAnimationAfterTransition = false;
+  }
 
+  private createPlayfieldShell(): void {
     this.add
       .image(MAZE.imageX, MAZE.imageY, ASSET_KEYS.mazeBackground)
       .setOrigin(0, 0)
@@ -232,8 +274,17 @@ export class GameScene extends Phaser.Scene {
     this.hud = createHud(this);
     this.hud.setLives(this.livesRemaining);
     this.syncHudFromGameState();
-    this.setupCurrentLevel({ useHudEntryAnimation: true });
-    this.installDebugConsole();
+  }
+
+  /** Shows the Godot-style PART 1 panel before the first playable board starts. */
+  private startInitialLevelTransitionScreen(): void {
+    this.isLevelAdvancePending = false;
+    this.isEndLevelFreezeActive = false;
+    this.endLevelFreezeTicksRemaining = 0;
+    this.queuedNextLevelNumber = 1;
+    this.queuedNextLevelSpawnPlan = generateSpecialCollectibleSpawnPlan(1);
+    this.shouldUseHudEntryAnimationAfterTransition = true;
+    this.showLevelTransitionScreen();
   }
 
   private setupCurrentLevel(options: LevelSetupOptions): void {
@@ -295,10 +346,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   public override update(_time: number, delta: number): void {
+    this.titleScreenView?.update(delta / 1000);
     this.arcadeClock.runFrame(delta, () => this.runOneSimulationTick());
   }
 
   private runOneSimulationTick(): void {
+    if (this.isTitleScreenActive || !this.isGameStarted) {
+      return;
+    }
+
+    if (this.isGameOverActive) {
+      this.advanceGameOverOneTick();
+      return;
+    }
+
     if (this.hud?.isLifeEntryAnimationActive) {
       this.hud.advanceLifeEntryAnimationOneTick();
       return;
@@ -508,6 +569,7 @@ export class GameScene extends Phaser.Scene {
     this.isLevelAdvancePending = false;
     this.queuedNextLevelNumber = Math.max(1, Math.floor(nextLevelNumber));
     this.queuedNextLevelSpawnPlan = generateSpecialCollectibleSpawnPlan(this.queuedNextLevelNumber);
+    this.shouldUseHudEntryAnimationAfterTransition = false;
     this.endLevelFreezeTicksRemaining = END_LEVEL_FREEZE_DURATION_TICKS;
     this.isEndLevelFreezeActive = true;
     this.arcadeClock.reset();
@@ -569,10 +631,13 @@ export class GameScene extends Phaser.Scene {
     this.levelTransitionView?.hide();
     this.isLevelTransitionScreenActive = false;
     this.levelTransitionTicksRemaining = 0;
+    const useHudEntryAnimation = this.shouldUseHudEntryAnimationAfterTransition;
+
     this.currentLevelNumber = nextLevelNumber;
     this.queuedNextLevelNumber = 0;
     this.queuedNextLevelSpawnPlan = undefined;
-    this.setupCurrentLevel({ useHudEntryAnimation: false, spawnPlan });
+    this.shouldUseHudEntryAnimationAfterTransition = false;
+    this.setupCurrentLevel({ useHudEntryAnimation, spawnPlan });
   }
 
 
@@ -644,8 +709,7 @@ export class GameScene extends Phaser.Scene {
     this.arcadeClock.reset();
 
     if (this.livesRemaining <= 0) {
-      this.enemies?.hideAllViewsForPlayerDeathSequence();
-      this.player?.hideAfterDeathSequence();
+      this.startGameOverFlow();
       return;
     }
 
@@ -655,6 +719,41 @@ export class GameScene extends Phaser.Scene {
     this.borderTimer?.resetTimer();
     this.soundPlayer?.resetTimerStepCadence(this.currentLevelNumber);
     this.startPlayerEntryAnimation();
+  }
+
+  private startGameOverFlow(): void {
+    if (this.isGameOverActive) {
+      return;
+    }
+
+    this.enemies?.hideAllViewsForPlayerDeathSequence();
+    this.player?.hideAfterDeathSequence();
+    this.pickupPopupState.clear();
+    this.pickupPopupView?.clear();
+    this.isPlayerDeathSequenceActive = false;
+    this.isEndLevelFreezeActive = false;
+    this.isLevelTransitionScreenActive = false;
+    this.levelTransitionView?.hide();
+    this.isGameOverActive = true;
+    this.gameOverTicksRemaining = GAME_OVER_DURATION_TICKS;
+    this.arcadeClock.reset();
+    this.gameOverView?.showGameOver();
+  }
+
+  private advanceGameOverOneTick(): void {
+    this.gameOverTicksRemaining -= 1;
+
+    if (this.gameOverTicksRemaining > 0) {
+      return;
+    }
+
+    this.gameOverTicksRemaining = 0;
+    this.isGameOverActive = false;
+
+    // Match the Godot flow: after the measured GAME OVER duration, discard the
+    // level scene and return to a clean title screen rather than restarting from
+    // inside the overlay.
+    this.scene.restart();
   }
 
   private shouldShowPickupPopup(pickup: CollectiblePickupResult): boolean {
@@ -708,6 +807,8 @@ export class GameScene extends Phaser.Scene {
         playerMovement: this.playerMovement,
         collectibleField: this.collectibleField,
         gateSystem: this.gateField?.gateSystem,
+        titleScreen: this.titleScreenView,
+        gameOver: this.gameOverView,
       }),
     });
 
@@ -719,6 +820,10 @@ export class GameScene extends Phaser.Scene {
 
   private debugReleaseNextEnemy(): LadyBugDebugCommandResult {
     const statusBeforeRelease = this.createDebugStatus();
+
+    if (!this.isGameStarted || this.isTitleScreenActive || this.isGameOverActive) {
+      return this.createDebugCommandResult(false, 'Cannot release enemies outside active gameplay.', false, statusBeforeRelease);
+    }
 
     if (this.isEndLevelFreezeActive || this.isLevelTransitionScreenActive) {
       return this.createDebugCommandResult(false, 'Cannot release enemies during the level transition flow.', false, statusBeforeRelease);
@@ -750,6 +855,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private debugReleaseAllEnemies(): LadyBugDebugCommandResult {
+    if (!this.isGameStarted || this.isTitleScreenActive || this.isGameOverActive) {
+      return this.createDebugCommandResult(false, 'Cannot release enemies outside active gameplay.', false);
+    }
+
     if (!this.enemies) {
       return this.createDebugCommandResult(false, 'The enemy system is not ready yet.', false);
     }
@@ -779,6 +888,14 @@ export class GameScene extends Phaser.Scene {
 
   private debugAdvanceToNextLevel(): LadyBugDebugLevelCommandResult {
     const previousLevelNumber = this.currentLevelNumber;
+
+    if (!this.isGameStarted || this.isTitleScreenActive || this.isGameOverActive) {
+      return this.createDebugLevelCommandResult(
+        false,
+        'Cannot skip level outside active gameplay.',
+        previousLevelNumber,
+      );
+    }
 
     if (this.isPlayerDeathSequenceActive) {
       return this.createDebugLevelCommandResult(
@@ -868,6 +985,9 @@ export class GameScene extends Phaser.Scene {
     const enemySystem = this.enemies?.enemySystem;
 
     return {
+      gameStarted: this.isGameStarted,
+      titleScreenActive: this.isTitleScreenActive,
+      gameOverActive: this.isGameOverActive,
       levelNumber: this.currentLevelNumber,
       livesRemaining: this.livesRemaining,
       score: this.scoreState.score,

@@ -23,6 +23,9 @@ export interface LadyBugDebugApi {
 }
 
 export interface LadyBugDebugStatus {
+  readonly gameStarted: boolean;
+  readonly titleScreenActive: boolean;
+  readonly gameOverActive: boolean;
   readonly levelNumber: number;
   readonly livesRemaining: number;
   readonly score: number;
