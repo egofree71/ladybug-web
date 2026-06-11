@@ -56,7 +56,7 @@ const ANCHOR_FAMILY_C: readonly CollectibleCell[] = [
   { x: 10, y: 4 },
 ];
 
-const DEFAULT_PREVIEW_SEED = 'ladybug-web-level-1-special-collectibles';
+const SPAWN_SEED_PREFIX = 'ladybug-web-special-collectibles';
 
 interface SeededRandom {
   nextIntInclusive(min: number, max: number): number;
@@ -89,6 +89,13 @@ function createSeededRandom(seed: string): SeededRandom {
   };
 }
 
+
+/** Builds a unique spawn seed for one board creation. */
+export function createRandomCollectibleSpawnSeed(): string {
+  const randomPart = Math.random().toString(36).slice(2);
+  return `${SPAWN_SEED_PREFIX}:${Date.now()}:${randomPart}`;
+}
+
 /** Returns the number of skulls used by one level, matching the Godot rules. */
 export function computeSkullCount(levelNumber: number): number {
   if (levelNumber <= 1) {
@@ -113,14 +120,17 @@ export function computeSkullCount(levelNumber: number): number {
 /**
  * Generates the start-of-level plan for hearts, letters and skulls.
  *
- * This is a TypeScript port of the current Godot spawn planner. For the first
- * web preview branch the seed is fixed, making screenshots stable while still
- * exercising the real level-1 placement rules: three letters, three hearts and
- * two skulls replacing base flowers.
+ * This is a TypeScript port of the current Godot spawn planner. Normal gameplay
+ * uses a fresh seed each time a board is created, so special collectible
+ * positions and letters vary between runs. Tests or debug helpers can still pass
+ * an explicit seed when they need reproducible placement.
  */
-export function generateSpecialCollectibleSpawnPlan(levelNumber: number, seed = DEFAULT_PREVIEW_SEED): CollectibleSpawnPlan {
+export function generateSpecialCollectibleSpawnPlan(
+  levelNumber: number,
+  seed = createRandomCollectibleSpawnSeed(),
+): CollectibleSpawnPlan {
   const effectiveLevelNumber = Math.max(1, Math.floor(levelNumber));
-  const rng = createSeededRandom(`${seed}:${effectiveLevelNumber}`);
+  const rng = createSeededRandom(`${seed}:level-${effectiveLevelNumber}`);
 
   const pickA = drawFourDistinctAnchors(ANCHOR_FAMILY_A, rng);
   const pickB = drawFourDistinctAnchors(ANCHOR_FAMILY_B, rng);
