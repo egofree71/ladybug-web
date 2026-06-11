@@ -10,6 +10,8 @@ export const ASSET_KEYS = {
   borderTimerTiles: 'border-timer-tiles',
   rotatingGate: 'rotating-gate',
   ladybug: 'ladybug',
+  collectibles: 'collectibles',
+  collectibleLayout: 'collectible-layout',
   hudArcadeFont26: 'hud-arcade-font-26',
   hudArcadeFont28: 'hud-arcade-font-28',
 } as const;
