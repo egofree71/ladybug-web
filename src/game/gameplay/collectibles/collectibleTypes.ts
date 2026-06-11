@@ -45,3 +45,18 @@ export interface CollectibleSpawnPlan {
   readonly placements: readonly CollectiblePlacement[];
   readonly transitionPreviewLetters: readonly LetterKind[];
 }
+
+export interface CollectiblePickupResult {
+  readonly consumed: boolean;
+  readonly kind: CollectibleKind;
+  readonly cell: CollectibleCell;
+  readonly color: CollectibleColor;
+  readonly letter?: LetterKind;
+}
+
+export const NO_COLLECTIBLE_PICKUP: CollectiblePickupResult = {
+  consumed: false,
+  kind: COLLECTIBLE_KIND.flower,
+  cell: { x: -1, y: -1 },
+  color: COLLECTIBLE_COLOR.none,
+};

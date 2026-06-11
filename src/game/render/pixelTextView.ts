@@ -25,6 +25,7 @@ type PixelTextOptions = {
   y: number;
   fontSize: PixelFontSize;
   tint: number;
+  glyphTints?: readonly number[];
   align?: PixelTextAlign;
   originY?: number;
   depth?: number;
@@ -74,10 +75,11 @@ export function createPixelText(scene: Phaser.Scene, options: PixelTextOptions):
       return;
     }
 
+    const tint = options.glyphTints?.[characterIndex] ?? options.tint;
     const glyph = scene.add
       .image(startX + characterIndex * font.frameWidth, startY, font.textureKey, frame)
       .setOrigin(0, 0)
-      .setTint(options.tint);
+      .setTint(tint);
 
     container.add(glyph);
   });

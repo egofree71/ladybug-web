@@ -2,7 +2,7 @@
 
 This document describes the current state of the early Phaser web remake of Lady Bug.
 
-The current implementation focuses on the level-1 game screen, the first collectible systems, the initial player entry sequence, and the first playable player movement pass. Enemies, collectible pickup and real scoring are intentionally left for later work.
+The current implementation focuses on the level-1 game screen, the first collectible systems, the initial player entry sequence, the first playable player movement pass, and pickup/scoring for non-lethal collectibles. Enemies and skull-death handling are intentionally left for later work.
 
 ## Current Scope
 
@@ -27,20 +27,24 @@ The current branch implements:
 - keyboard-driven player movement advanced from fixed simulation ticks;
 - static maze collision checks based on `maze.json`;
 - arcade-style turn windows and assisted turns ported from the Godot movement motor;
-- interactive rotating gates with logical blocking state and short turning visuals.
+- interactive rotating gates with logical blocking state and short turning visuals;
+- collectible pickup for flowers, hearts and letters;
+- score updates using the current heart multiplier;
+- blue-heart multiplier progression;
+- SPECIAL / EXTRA word progress from red and yellow letters.
 
 The current branch does not implement yet:
 
-- collectible pickup;
-- score updates;
-- `SPECIAL` / `EXTRA` word completion;
-- multiplier activation from blue hearts;
+- skull contact and player-death handling;
+- pickup score popups;
+- level completion / level transitions after clearing all progress collectibles;
+- completed `SPECIAL` / `EXTRA` awards;
 - enemies;
 - enemy spawning;
 - the real border timer animation;
 - level transitions.
 
-The goal is to validate the visual frame and the first timing-dependent collectible behavior before adding movement, collision and enemy logic.
+The goal is now to validate the first playable loop around movement, gate interaction, collectible pickup, scoring and HUD updates before adding lethal hazards and enemies.
 
 ## Reference Used
 
@@ -57,7 +61,11 @@ Important points taken from Godot:
 - the HUD life-entry animation is owned by the HUD, while the final in-maze player sprite uses the level coordinate system;
 - player movement uses integer arcade-pixel coordinates and one-pixel committed movement segments;
 - static walls and rotating gates are evaluated separately, matching the Godot playfield collision split;
-- gates toggle their logical blocking axis immediately when pushed, then briefly display a diagonal turning frame.
+- gates toggle their logical blocking axis immediately when pushed, then briefly display a diagonal turning frame;
+- collectible pickup follows the exact movement segments returned by the player motor so assisted turns do not skip collectibles;
+- flowers, hearts and letters are removed from the board when collected, while skull pickup is deliberately deferred to the future death-sequence branch;
+- scores are calculated from the collectible kind, current color, and current blue-heart multiplier;
+- blue hearts advance the multiplier only after the blue heart itself has been scored.
 
 This coordinate-space split matters: the HUD and the playfield do not use the same origin in Godot.
 
@@ -260,6 +268,51 @@ blue -> red -> yellow -> blue
 
 This cycle is intentionally independent from the maze-border / enemy-release timer.
 
+### `src/game/gameplay/collectibles/playerCollectiblePickupSystem.ts`
+
+Detects which collectible cells the player actually crossed during one movement result.
+
+Responsibilities:
+
+- inspect the snapped position reported by the movement motor;
+- inspect every one-pixel movement segment;
+- consume a collectible only when the player crosses a logical cell anchor;
+- preserve assisted-turn behavior where one simulation tick may contain an alignment correction and a requested-direction step.
+
+This mirrors the Godot player controller. Checking only the final player cell would miss some pickups during tight assisted turns.
+
+### `src/game/gameplay/scoring/`
+
+Contains the first score-related semantic state.
+
+Responsibilities:
+
+- `ScoreState` stores the current score;
+- `HeartMultiplierState` stores the x2 / x3 / x5 blue-heart progression;
+- `collectibleScoreService.ts` calculates the score awarded by flowers, hearts and letters.
+
+Current scoring rules:
+
+- flower: 10 points times the current multiplier;
+- blue heart / letter: 100 points times the current multiplier;
+- yellow heart / letter: 300 points times the current multiplier;
+- red heart / letter: 800 points times the current multiplier.
+
+A blue heart is scored with the multiplier that was active before pickup, then it advances the multiplier step for future collectibles.
+
+### `src/game/gameplay/words/wordProgressState.ts`
+
+Tracks SPECIAL and EXTRA progress.
+
+Responsibilities:
+
+- red letters can activate matching letters in SPECIAL;
+- yellow letters can activate matching letters in EXTRA;
+- blue letters are score-only;
+- already-active letters do not change word progress again.
+
+Completed-word awards and level transitions are not implemented yet.
+
 ### `src/game/gameplay/maze/mazeGrid.ts`
 
 Runtime representation of `maze.json`.
@@ -375,10 +428,12 @@ Responsibilities:
 - display `EXTRA`;
 - display `x2 x3 x5`;
 - display reserve life icons;
-- display a temporary score;
+- display and update the current score;
+- display and update the x2 / x3 / x5 multiplier indicators;
+- display and update SPECIAL / EXTRA letter progress;
 - own the temporary HUD-to-maze life-entry sprite.
 
-The HUD starts the travelling ladybug from the rightmost available life icon, then leaves only reserve lives visible while that temporary sprite moves into the maze. Dynamic colors for `SPECIAL` and `EXTRA`, multiplier activation and real score updates will be implemented later through a real game state.
+The HUD starts the travelling ladybug from the rightmost available life icon, then leaves only reserve lives visible while that temporary sprite moves into the maze. It is still a view layer: scoring, word progress and multiplier state live in gameplay classes, then the scene pushes the updated values to the HUD.
 
 ### `src/game/render/playerView.ts`
 
@@ -403,16 +458,20 @@ Responsibilities:
 - read `collectibles_layout.json` from the Phaser JSON cache;
 - draw all base flower cells;
 - replace selected flowers with level-1 hearts, letters and skulls;
+- keep semantic runtime state for each active collectible;
 - keep references to sprites affected by the color cycle;
-- update heart and letter colors when the cycle changes.
+- update heart and letter colors when the cycle changes;
+- consume flowers, hearts and letters when the player crosses their logical cell anchor;
+- leave skulls untouched until the future skull-death branch.
 
 The view currently exposes a small `CollectibleFieldView` facade with:
 
 ```ts
 applyColorCycle(color)
+tryConsumeProgressCollectible(cell)
 ```
 
-This keeps the color-cycle update separate from Phaser rendering details.
+This keeps color-cycle and pickup state separate from the Phaser scene orchestration code while still avoiding any inference from sprite frames.
 
 The heart collectible is drawn in two parts:
 
@@ -437,7 +496,9 @@ Responsibilities:
 - start the HUD-to-maze player entry animation;
 - run the fixed-step clock from Phaser's variable `update()` callback;
 - advance the player entry animation from fixed simulation ticks;
-- advance gate timers, collectible colors and player movement from fixed simulation ticks once the entry animation is finished.
+- advance gate timers, collectible colors and player movement from fixed simulation ticks once the entry animation is finished;
+- consume flowers, hearts and letters from the movement result;
+- apply score, multiplier and word-progress consequences to gameplay state and HUD.
 
 The scene orchestrates the current systems, but it should not become a large gameplay class. Later branches should continue moving dedicated logic into focused modules.
 
@@ -527,8 +588,8 @@ To avoid deploying technical documents when testing the game:
 After this branch is validated, the next branches could be:
 
 ```text
-feature/collectible-pickup
-feature/scoring-hud
+feature/skull-death-sequence
+feature/pickup-score-popup
 feature/border-timer-animation
 feature/enemy-spawn
 feature/enemy-movement
@@ -548,6 +609,8 @@ A few rules to keep for the next steps:
 - keep player movement logic in `src/game/gameplay/player/`;
 - keep collectible layout constants in `collectibleLayout.ts`;
 - keep collectible rules in `src/game/gameplay/collectibles/`;
+- keep scoring rules in `src/game/gameplay/scoring/`;
+- keep word-progress rules in `src/game/gameplay/words/`;
 - keep browser-frame timing separate from gameplay timing;
 - avoid mixing rendering, game logic and dynamic state in the same file;
 - prefer short branches with clear commits.

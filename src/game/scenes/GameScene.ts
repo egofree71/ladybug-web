@@ -2,7 +2,13 @@ import Phaser from 'phaser';
 import { ASSET_KEYS, assetUrl } from '../assets';
 import { MAZE } from '../layout/screenLayout';
 import { CollectibleColorCycle } from '../gameplay/collectibles/collectibleColorCycle';
+import { COLLECTIBLE_COLOR, COLLECTIBLE_KIND, type CollectiblePickupResult } from '../gameplay/collectibles/collectibleTypes';
+import { consumeCollectiblesAlongPlayerStep } from '../gameplay/collectibles/playerCollectiblePickupSystem';
+import { calculateCollectibleScore } from '../gameplay/scoring/collectibleScoreService';
+import { HeartMultiplierState } from '../gameplay/scoring/heartMultiplierState';
+import { ScoreState } from '../gameplay/scoring/scoreState';
 import { FixedArcadeClock } from '../gameplay/timing/fixedArcadeClock';
+import { WordProgressState } from '../gameplay/words/wordProgressState';
 import { MazeGrid } from '../gameplay/maze/mazeGrid';
 import { PlayerInputState } from '../gameplay/player/playerInputState';
 import { PlayerMovementMotor } from '../gameplay/player/playerMovementMotor';
@@ -17,13 +23,17 @@ import { PlayerView } from '../render/playerView';
 /**
  * First gameplay scene for the Phaser remake.
  *
- * Player movement, collectible colors, and gate timers are advanced from the
- * fixed-step clock. Phaser's display update cadence only decides when the most
- * recent simulation state is rendered; it does not directly set gameplay speed.
+ * Player movement, collectible colors, pickups, and gate timers are advanced
+ * from the fixed-step clock. Phaser's display update cadence only decides when
+ * the most recent simulation state is rendered; it does not directly set
+ * gameplay speed.
  */
 export class GameScene extends Phaser.Scene {
   private readonly arcadeClock = new FixedArcadeClock();
   private readonly collectibleColorCycle = new CollectibleColorCycle();
+  private readonly scoreState = new ScoreState();
+  private readonly heartMultiplierState = new HeartMultiplierState();
+  private readonly wordProgressState = new WordProgressState();
   private collectibleField?: CollectibleFieldView;
   private gateField?: GateFieldView;
   private hud?: HudView;
@@ -76,6 +86,9 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setRoundPixels(true);
     this.arcadeClock.reset();
     this.collectibleColorCycle.resetToBlue();
+    this.scoreState.reset();
+    this.heartMultiplierState.reset();
+    this.wordProgressState.reset();
 
     const mazeGrid = MazeGrid.fromDataFile(this.cache.json.get(ASSET_KEYS.mazeLayout));
 
@@ -96,6 +109,7 @@ export class GameScene extends Phaser.Scene {
       PLAYER_LAYOUT.startCell,
     );
     this.hud = createHud(this);
+    this.syncHudFromGameState();
     this.startPlayerEntryAnimation();
   }
 
@@ -126,6 +140,52 @@ export class GameScene extends Phaser.Scene {
 
     const stepResult = this.playerMovement.step(this.playerInput.readPressedDirection());
     this.player?.applyMovementStep(stepResult);
+
+    if (!this.collectibleField) {
+      return;
+    }
+
+    const pickups = consumeCollectiblesAlongPlayerStep(stepResult, this.collectibleField);
+    for (const pickup of pickups) {
+      this.applyCollectiblePickup(pickup);
+    }
+  }
+
+  private applyCollectiblePickup(pickup: CollectiblePickupResult): void {
+    if (!pickup.consumed || pickup.kind === COLLECTIBLE_KIND.skull) {
+      return;
+    }
+
+    const scoreCalculation = calculateCollectibleScore(
+      pickup.kind,
+      pickup.color,
+      this.heartMultiplierState.currentMultiplier,
+    );
+
+    if (scoreCalculation.hasScore) {
+      this.scoreState.addPoints(scoreCalculation.scoreDelta);
+      this.hud?.setScore(this.scoreState.score);
+    }
+
+    if (pickup.kind === COLLECTIBLE_KIND.letter) {
+      const wordResult = this.wordProgressState.tryApplyLetter(pickup.letter, pickup.color);
+
+      if (wordResult.changed) {
+        this.hud?.setWordProgress(this.wordProgressState);
+      }
+    }
+
+    if (pickup.kind === COLLECTIBLE_KIND.heart && pickup.color === COLLECTIBLE_COLOR.blue) {
+      if (this.heartMultiplierState.advanceOneStep()) {
+        this.hud?.setMultiplierStep(this.heartMultiplierState.step);
+      }
+    }
+  }
+
+  private syncHudFromGameState(): void {
+    this.hud?.setScore(this.scoreState.score);
+    this.hud?.setMultiplierStep(this.heartMultiplierState.step);
+    this.hud?.setWordProgress(this.wordProgressState);
   }
 
   private startPlayerEntryAnimation(): void {

@@ -1,6 +1,9 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 import { FONT, HUD } from '../layout/screenLayout';
+import { COLLECTIBLE_TINTS } from '../layout/collectibleLayout';
+import type { LetterKind } from '../gameplay/collectibles/collectibleTypes';
+import { WordProgressState } from '../gameplay/words/wordProgressState';
 import { createPixelText } from './pixelTextView';
 import {
   ensurePlayerEntryAnimations,
@@ -28,6 +31,9 @@ export interface HudView {
   readonly isLifeEntryAnimationActive: boolean;
   startLifeEntryAnimation(targetCenter: Phaser.Math.Vector2, onFinished: PlayerEntryFinishedCallback): boolean;
   advanceLifeEntryAnimationOneTick(): boolean;
+  setScore(score: number): void;
+  setMultiplierStep(multiplierStep: number): void;
+  setWordProgress(wordProgress: WordProgressState): void;
 }
 
 class PhaserHudView implements HudView {
@@ -40,17 +46,91 @@ class PhaserHudView implements HudView {
   private lifeEntryHiddenSourceIconIndex = -1;
   private lifeEntryFinishedCallback?: PlayerEntryFinishedCallback;
   private currentLifeInMaze = true;
+  private specialWordText?: Phaser.GameObjects.Container;
+  private extraWordText?: Phaser.GameObjects.Container;
+  private multiplierText?: Phaser.GameObjects.Container;
+  private scoreText?: Phaser.GameObjects.Container;
 
   public constructor(scene: Phaser.Scene) {
     this.scene = scene;
     this.createStaticTopHud();
     this.createLifeIcons();
-    this.createScore();
+    this.setScore(0);
     this.setCurrentLifeInMaze(true);
   }
 
   public get isLifeEntryAnimationActive(): boolean {
     return this.lifeEntrySprite !== undefined;
+  }
+
+  /** Updates the numeric score display. */
+  public setScore(score: number): void {
+    this.scoreText = replacePixelText(this.scoreText, this.scene, {
+      text: Math.max(0, Math.floor(score)).toString(),
+      x: HUD.scoreX,
+      y: HUD.bottomScoreCenterY,
+      fontSize: FONT.scoreSizePx,
+      tint: HUD_GREY_TINT,
+      align: 'right',
+      originY: 0.5,
+      depth: 100,
+    });
+  }
+
+  /** Updates SPECIAL and EXTRA from the semantic word-progress state. */
+  public setWordProgress(wordProgress: WordProgressState): void {
+    this.specialWordText = replacePixelText(this.specialWordText, this.scene, {
+      text: 'SPECIAL',
+      x: HUD.leftX,
+      y: HUD.topY,
+      fontSize: FONT.topSizePx,
+      tint: HUD_GREY_TINT,
+      glyphTints: buildWordTints(
+        WordProgressState.specialWordLetters,
+        (letter) => wordProgress.isSpecialLetterActive(letter),
+        COLLECTIBLE_TINTS.red,
+      ),
+      depth: 100,
+    });
+
+    this.extraWordText = replacePixelText(this.extraWordText, this.scene, {
+      text: 'EXTRA',
+      x: HUD.centerX,
+      y: HUD.topY,
+      fontSize: FONT.topSizePx,
+      tint: HUD_GREY_TINT,
+      glyphTints: buildWordTints(
+        WordProgressState.extraWordLetters,
+        (letter) => wordProgress.isExtraLetterActive(letter),
+        COLLECTIBLE_TINTS.yellow,
+      ),
+      align: 'center',
+      depth: 100,
+    });
+  }
+
+  /** Updates which multiplier labels are lit after blue-heart pickups. */
+  public setMultiplierStep(multiplierStep: number): void {
+    const safeStep = Phaser.Math.Clamp(Math.floor(multiplierStep), 0, 3);
+    const text = 'x2 x3 x5';
+    const glyphTints = [
+      ...repeatTint(2, safeStep >= 1 ? COLLECTIBLE_TINTS.blue : HUD_GREY_TINT),
+      HUD_GREY_TINT,
+      ...repeatTint(2, safeStep >= 2 ? COLLECTIBLE_TINTS.blue : HUD_GREY_TINT),
+      HUD_GREY_TINT,
+      ...repeatTint(2, safeStep >= 3 ? COLLECTIBLE_TINTS.blue : HUD_GREY_TINT),
+    ];
+
+    this.multiplierText = replacePixelText(this.multiplierText, this.scene, {
+      text,
+      x: HUD.rightX,
+      y: HUD.topY,
+      fontSize: FONT.topSizePx,
+      tint: HUD_GREY_TINT,
+      glyphTints,
+      align: 'right',
+      depth: 100,
+    });
   }
 
   /**
@@ -125,34 +205,8 @@ class PhaserHudView implements HudView {
   }
 
   private createStaticTopHud(): void {
-    createPixelText(this.scene, {
-      text: 'SPECIAL',
-      x: HUD.leftX,
-      y: HUD.topY,
-      fontSize: FONT.topSizePx,
-      tint: HUD_GREY_TINT,
-      depth: 100,
-    });
-
-    createPixelText(this.scene, {
-      text: 'EXTRA',
-      x: HUD.centerX,
-      y: HUD.topY,
-      fontSize: FONT.topSizePx,
-      tint: HUD_GREY_TINT,
-      align: 'center',
-      depth: 100,
-    });
-
-    createPixelText(this.scene, {
-      text: 'x2 x3 x5',
-      x: HUD.rightX,
-      y: HUD.topY,
-      fontSize: FONT.topSizePx,
-      tint: HUD_GREY_TINT,
-      align: 'right',
-      depth: 100,
-    });
+    this.setWordProgress(new WordProgressState());
+    this.setMultiplierStep(0);
   }
 
   private createLifeIcons(): void {
@@ -165,19 +219,6 @@ class PhaserHudView implements HudView {
 
       this.lifeIcons.push(icon);
     }
-  }
-
-  private createScore(): void {
-    createPixelText(this.scene, {
-      text: '0',
-      x: HUD.scoreX,
-      y: HUD.bottomScoreCenterY,
-      fontSize: FONT.scoreSizePx,
-      tint: HUD_GREY_TINT,
-      align: 'right',
-      originY: 0.5,
-      depth: 100,
-    });
   }
 
   private setCurrentLifeInMaze(isInMaze: boolean): void {
@@ -219,6 +260,31 @@ class PhaserHudView implements HudView {
     this.lifeEntryFinishedCallback = undefined;
     this.updateLifeIconDisplay();
   }
+}
+
+function replacePixelText(
+  currentText: Phaser.GameObjects.Container | undefined,
+  scene: Phaser.Scene,
+  options: Parameters<typeof createPixelText>[1],
+): Phaser.GameObjects.Container {
+  if (currentText) {
+    currentText.removeAll(true);
+    currentText.destroy();
+  }
+
+  return createPixelText(scene, options);
+}
+
+function buildWordTints(
+  letters: readonly LetterKind[],
+  isActive: (letter: LetterKind) => boolean,
+  activeTint: number,
+): number[] {
+  return letters.map((letter) => (isActive(letter) ? activeTint : HUD_GREY_TINT));
+}
+
+function repeatTint(count: number, tint: number): number[] {
+  return Array.from({ length: count }, () => tint);
 }
 
 /**
