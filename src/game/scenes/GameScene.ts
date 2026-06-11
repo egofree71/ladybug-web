@@ -22,6 +22,8 @@ import { createLevelOneCollectibles, type CollectibleFieldView } from '../render
 import { createRotatingGates, type GateFieldView } from '../render/gateView';
 import { getPlayerStartCenter } from '../layout/playerLayout';
 import { PlayerView } from '../render/playerView';
+import { createEnemies, type EnemyFieldView } from '../render/enemyView';
+import { enemyPlayerCollisionActive } from '../gameplay/enemies/enemyMovementAi';
 
 /**
  * First gameplay scene for the Phaser remake.
@@ -41,6 +43,7 @@ export class GameScene extends Phaser.Scene {
   private collectibleField?: CollectibleFieldView;
   private gateField?: GateFieldView;
   private borderTimer?: MazeBorderTimerView;
+  private enemies?: EnemyFieldView;
   private hud?: HudView;
   private pickupPopupView?: CollectiblePickupPopupView;
   private player?: PlayerView;
@@ -91,6 +94,46 @@ export class GameScene extends Phaser.Scene {
       frameHeight: 64,
     });
 
+    this.load.spritesheet(ASSET_KEYS.enemyLevel1, assetUrl('assets/sprites/enemies/enemy_level1.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.enemyLevel2, assetUrl('assets/sprites/enemies/enemy_level2.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.enemyLevel3, assetUrl('assets/sprites/enemies/enemy_level3.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.enemyLevel4, assetUrl('assets/sprites/enemies/enemy_level4.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.enemyLevel5, assetUrl('assets/sprites/enemies/enemy_level5.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.enemyLevel6, assetUrl('assets/sprites/enemies/enemy_level6.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.enemyLevel7, assetUrl('assets/sprites/enemies/enemy_level7.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet(ASSET_KEYS.enemyLevel8, assetUrl('assets/sprites/enemies/enemy_level8.png'), {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
     this.load.spritesheet(ASSET_KEYS.hudArcadeFont26, assetUrl('assets/fonts/hud_arcade_font_26.png'), {
       frameWidth: 26,
       frameHeight: 28,
@@ -111,6 +154,8 @@ export class GameScene extends Phaser.Scene {
     this.load.audio(ASSET_KEYS.collectiblePickupSound, assetUrl('assets/audio/collectible_pickup.wav'));
     this.load.audio(ASSET_KEYS.gateRotatedSound, assetUrl('assets/audio/gate_rotated.wav'));
     this.load.audio(ASSET_KEYS.deathSequenceSound, assetUrl('assets/audio/death_sequence.wav'));
+    this.load.audio(ASSET_KEYS.enemyDeathSound, assetUrl('assets/audio/death_enemy.wav'));
+    this.load.audio(ASSET_KEYS.enemyExitWarningSound, assetUrl('assets/audio/enemy_exit.wav'));
   }
 
   public create(): void {
@@ -136,6 +181,7 @@ export class GameScene extends Phaser.Scene {
     this.borderTimer = createMazeBorderTimer(this, 1);
     this.collectibleField = createLevelOneCollectibles(this, this.collectibleColorCycle.currentColor);
     this.gateField = createRotatingGates(this);
+    this.enemies = createEnemies(this, mazeGrid, this.gateField.gateSystem, 1);
 
     this.pickupPopupView = new CollectiblePickupPopupView(this);
     this.player = new PlayerView(this);
@@ -177,28 +223,48 @@ export class GameScene extends Phaser.Scene {
 
     this.gateField?.gateSystem.advanceOneTick();
     this.advanceBorderTimerOneTick();
+    this.advanceEnemiesOneTick();
+    this.advancePlayerOneTick();
+    this.checkPlayerEnemyCollisions();
 
     if (this.collectibleColorCycle.advanceOneTick()) {
       this.collectibleField?.applyColorCycle(this.collectibleColorCycle.currentColor);
     }
 
-    this.advancePlayerOneTick();
     this.gateField?.syncFromRuntimeState();
   }
 
   private advanceBorderTimerOneTick(): void {
     const stepResult = this.borderTimer?.advanceOneSimulationTick();
 
-    if (!stepResult?.shouldReleaseEnemy) {
+    if (!stepResult) {
       return;
     }
 
-    this.handleBorderTimerReleaseOpportunity();
+    if (stepResult.shouldPlayEnemyExitWarning && this.enemies?.hasReleaseCandidate) {
+      this.soundPlayer?.playEnemyExitWarning();
+    }
+
+    if (stepResult.shouldReleaseEnemy) {
+      this.handleBorderTimerReleaseOpportunity();
+    }
   }
 
   private handleBorderTimerReleaseOpportunity(): void {
-    // EnemyRuntime will consume this hook in the enemy-spawn branch. Keeping the
-    // release signal connected now avoids coupling future spawn timing to visuals.
+    this.enemies?.tryReleaseNextEnemy();
+  }
+
+  private advanceEnemiesOneTick(): void {
+    if (!this.playerMovement || !this.collectibleField) {
+      return;
+    }
+
+    this.enemies?.advanceOneSimulationTick({
+      playerArcadePixelPos: this.playerMovement.arcadePosition,
+      playerCurrentDirection: this.playerMovement.currentDirection,
+      tryConsumeSkullAt: (cell) => this.collectibleField?.tryConsumeSkullAt(cell) ?? false,
+      onEnemyKilledBySkull: () => this.soundPlayer?.playEnemyDeathFromSkull(),
+    });
   }
 
   private advancePlayerOneTick(): void {
@@ -277,6 +343,42 @@ export class GameScene extends Phaser.Scene {
 
 
 
+  private checkPlayerEnemyCollisions(): void {
+    if (!this.playerMovement || !this.enemies || this.isPlayerDeathSequenceActive || this.pickupPopupState.isActive) {
+      return;
+    }
+
+    const playerArcadePixelPos = this.playerMovement.arcadePosition;
+
+    for (const monster of this.enemies.enemySystem.collisionActiveMonsters) {
+      if (enemyPlayerCollisionActive(playerArcadePixelPos, monster)) {
+        this.startPlayerDeathFromEnemy();
+        return;
+      }
+    }
+  }
+
+
+
+  private startPlayerDeathFromEnemy(): void {
+    if (this.isPlayerDeathSequenceActive) {
+      return;
+    }
+
+    this.pickupPopupState.clear();
+    this.pickupPopupView?.clear();
+    this.enemies?.hideAllViewsForPlayerDeathSequence();
+
+    this.livesRemaining = Math.max(0, this.livesRemaining - 1);
+    this.hud?.setCurrentLifeInMaze(false);
+    this.hud?.setLives(this.livesRemaining);
+
+    this.soundPlayer?.playDeathSequenceStart();
+
+    this.isPlayerDeathSequenceActive = true;
+    this.player?.startDeathSequence();
+  }
+
   private startPlayerDeathFromSkull(): void {
     if (this.isPlayerDeathSequenceActive) {
       return;
@@ -307,10 +409,12 @@ export class GameScene extends Phaser.Scene {
     this.arcadeClock.reset();
 
     if (this.livesRemaining <= 0) {
+      this.enemies?.hideAllViewsForPlayerDeathSequence();
       this.player?.hideAfterDeathSequence();
       return;
     }
 
+    this.enemies?.resetAfterPlayerDeath();
     this.playerMovement?.resetToStartCell();
     this.borderTimer?.resetTimer();
     this.startPlayerEntryAnimation();

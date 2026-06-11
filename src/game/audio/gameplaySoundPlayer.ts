@@ -5,6 +5,8 @@ import { COLLECTIBLE_KIND, type CollectibleKind } from '../gameplay/collectibles
 const NORMAL_EFFECT_VOLUME = 0.8;
 const JINGLE_VOLUME = 0.85;
 const DEATH_VOLUME = 0.85;
+const ENEMY_DEATH_VOLUME = 0.85;
+const ENEMY_EXIT_WARNING_VOLUME = 0.85;
 
 /**
  * Centralized non-positional sound facade for the current arcade board.
@@ -71,6 +73,16 @@ export class GameplaySoundPlayer {
   /** Restarted effect used when the player death sequence starts. */
   public playDeathSequenceStart(): void {
     this.restart(ASSET_KEYS.deathSequenceSound, DEATH_VOLUME);
+  }
+
+  /** Short effect used when an enemy is killed by a skull. */
+  public playEnemyDeathFromSkull(): void {
+    this.playStackable(ASSET_KEYS.enemyDeathSound, ENEMY_DEATH_VOLUME);
+  }
+
+  /** Warning effect used shortly before a waiting enemy exits the lair. */
+  public playEnemyExitWarning(): void {
+    this.restart(ASSET_KEYS.enemyExitWarningSound, ENEMY_EXIT_WARNING_VOLUME);
   }
 
   private playStackable(key: string, volume: number): void {
