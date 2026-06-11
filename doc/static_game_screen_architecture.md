@@ -29,6 +29,7 @@ The current branch implements:
 - arcade-style turn windows and assisted turns ported from the Godot movement motor;
 - interactive rotating gates with logical blocking state and short turning visuals;
 - collectible pickup for flowers, hearts and letters;
+- the temporary heart / letter pickup score popup;
 - score updates using the current heart multiplier;
 - blue-heart multiplier progression;
 - SPECIAL / EXTRA word progress from red and yellow letters.
@@ -36,7 +37,6 @@ The current branch implements:
 The current branch does not implement yet:
 
 - skull contact and player-death handling;
-- pickup score popups;
 - level completion / level transitions after clearing all progress collectibles;
 - completed `SPECIAL` / `EXTRA` awards;
 - enemies;
@@ -64,6 +64,7 @@ Important points taken from Godot:
 - gates toggle their logical blocking axis immediately when pushed, then briefly display a diagonal turning frame;
 - collectible pickup follows the exact movement segments returned by the player motor so assisted turns do not skip collectibles;
 - flowers, hearts and letters are removed from the board when collected, while skull pickup is deliberately deferred to the future death-sequence branch;
+- heart and letter pickups start a 30-tick popup state, hide the player sprite, and freeze normal board simulation until the popup completes;
 - scores are calculated from the collectible kind, current color, and current blue-heart multiplier;
 - blue hearts advance the multiplier only after the blue heart itself has been scored.
 
@@ -268,6 +269,18 @@ blue -> red -> yellow -> blue
 
 This cycle is intentionally independent from the maze-border / enemy-release timer.
 
+### `src/game/gameplay/collectibles/collectiblePickupPopupState.ts`
+
+Tracks the temporary heart / letter score popup state.
+
+Responsibilities:
+
+- store the collected cell, base score, multiplier and final score delta;
+- count the 30 fixed simulation ticks used by the pickup pause;
+- tell the scene when the popup has just completed.
+
+The state does not render anything. Rendering is handled by `collectiblePickupPopupView.ts`.
+
 ### `src/game/gameplay/collectibles/playerCollectiblePickupSystem.ts`
 
 Detects which collectible cells the player actually crossed during one movement result.
@@ -449,6 +462,19 @@ Responsibilities:
 
 The file does not own movement rules. It receives arcade-pixel movement results from the player movement motor and turns them into screen coordinates.
 
+### `src/game/render/collectiblePickupPopupView.ts`
+
+Temporary view shown when the player collects a heart or a letter.
+
+Responsibilities:
+
+- place the popup at the logical cell anchor where the collectible was consumed;
+- render the base score on the upper line;
+- render the current multiplier in the lower-right popup area when greater than x1;
+- use bitmap glyphs with a small shadow instead of antialiased browser text.
+
+The player sprite is hidden and normal board simulation is frozen while the popup is active.
+
 ### `src/game/render/collectibleView.ts`
 
 View responsible for rendering collectibles.
@@ -498,7 +524,8 @@ Responsibilities:
 - advance the player entry animation from fixed simulation ticks;
 - advance gate timers, collectible colors and player movement from fixed simulation ticks once the entry animation is finished;
 - consume flowers, hearts and letters from the movement result;
-- apply score, multiplier and word-progress consequences to gameplay state and HUD.
+- apply score, multiplier and word-progress consequences to gameplay state and HUD;
+- start the heart / letter pickup popup and pause normal simulation until it completes.
 
 The scene orchestrates the current systems, but it should not become a large gameplay class. Later branches should continue moving dedicated logic into focused modules.
 
@@ -510,6 +537,7 @@ The assets used by the current implementation are in `public/assets`:
 public/assets/data/collectibles_layout.json
 public/assets/data/maze.json
 public/assets/fonts/PressStart2P-Regular.ttf
+public/assets/fonts/hud_arcade_font_16.png
 public/assets/fonts/hud_arcade_font_26.png
 public/assets/fonts/hud_arcade_font_28.png
 public/assets/images/maze_background.png
@@ -556,7 +584,8 @@ Current rule:
 - the player entry movement is advanced by the same fixed simulation ticks;
 - player movement is advanced by fixed simulation ticks and one-pixel arcade movement segments;
 - gate turning timers are advanced by fixed simulation ticks;
-- the collectible color cycle is paused while the entry animation is active, matching the Godot flow where gameplay is frozen during the life-entry sequence.
+- the collectible color cycle is paused while the entry animation is active, matching the Godot flow where gameplay is frozen during the life-entry sequence;
+- the collectible color cycle, gates and player movement are also paused while a heart / letter pickup popup is active.
 
 This separation is important because earlier web projects showed that frame-rate-dependent movement can behave differently on mobile browsers and desktop browsers.
 
@@ -589,7 +618,6 @@ After this branch is validated, the next branches could be:
 
 ```text
 feature/skull-death-sequence
-feature/pickup-score-popup
 feature/border-timer-animation
 feature/enemy-spawn
 feature/enemy-movement

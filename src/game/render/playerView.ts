@@ -46,9 +46,14 @@ export class PlayerView {
     this.playFacingAnimation(VEC2.up);
   }
 
-  /** Hides the in-maze sprite while the HUD life icon is entering the maze. */
+  /** Hides the in-maze sprite during entry and pickup-popup freeze states. */
   public hide(): void {
     this.sprite.setVisible(false);
+  }
+
+  /** Restores the in-maze sprite at its current gameplay-rendered position. */
+  public show(): void {
+    this.sprite.setVisible(true);
   }
 
   /** Synchronizes the rendered sprite from one fixed movement step result. */

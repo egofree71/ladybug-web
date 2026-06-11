@@ -15,6 +15,7 @@ export const ASSET_KEYS = {
   mazeLayout: 'maze-layout',
   hudArcadeFont26: 'hud-arcade-font-26',
   hudArcadeFont28: 'hud-arcade-font-28',
+  hudArcadeFont16: 'hud-arcade-font-16',
 } as const;
 
 export function assetUrl(relativePath: string): string {

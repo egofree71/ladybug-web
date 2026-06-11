@@ -4,6 +4,11 @@ import { ASSET_KEYS } from '../assets';
 const FONT_CHARACTERS = ' ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-*/:!?.';
 
 const HUD_FONT_BY_SIZE = {
+  16: {
+    textureKey: ASSET_KEYS.hudArcadeFont16,
+    frameWidth: 16,
+    frameHeight: 20,
+  },
   26: {
     textureKey: ASSET_KEYS.hudArcadeFont26,
     frameWidth: 26,

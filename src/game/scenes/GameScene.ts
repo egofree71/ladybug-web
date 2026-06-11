@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { ASSET_KEYS, assetUrl } from '../assets';
 import { MAZE } from '../layout/screenLayout';
 import { CollectibleColorCycle } from '../gameplay/collectibles/collectibleColorCycle';
-import { COLLECTIBLE_COLOR, COLLECTIBLE_KIND, type CollectiblePickupResult } from '../gameplay/collectibles/collectibleTypes';
+import { COLLECTIBLE_COLOR, COLLECTIBLE_KIND, type CollectibleCell, type CollectiblePickupResult } from '../gameplay/collectibles/collectibleTypes';
+import { CollectiblePickupPopupState } from '../gameplay/collectibles/collectiblePickupPopupState';
 import { consumeCollectiblesAlongPlayerStep } from '../gameplay/collectibles/playerCollectiblePickupSystem';
 import { calculateCollectibleScore } from '../gameplay/scoring/collectibleScoreService';
 import { HeartMultiplierState } from '../gameplay/scoring/heartMultiplierState';
@@ -14,6 +15,7 @@ import { PlayerInputState } from '../gameplay/player/playerInputState';
 import { PlayerMovementMotor } from '../gameplay/player/playerMovementMotor';
 import { PLAYER_LAYOUT } from '../layout/playerLayout';
 import { createHud, type HudView } from '../render/hudView';
+import { CollectiblePickupPopupView } from '../render/collectiblePickupPopupView';
 import { createMazeBorderTimer } from '../render/mazeBorderTimerView';
 import { createLevelOneCollectibles, type CollectibleFieldView } from '../render/collectibleView';
 import { createRotatingGates, type GateFieldView } from '../render/gateView';
@@ -34,9 +36,11 @@ export class GameScene extends Phaser.Scene {
   private readonly scoreState = new ScoreState();
   private readonly heartMultiplierState = new HeartMultiplierState();
   private readonly wordProgressState = new WordProgressState();
+  private readonly pickupPopupState = new CollectiblePickupPopupState();
   private collectibleField?: CollectibleFieldView;
   private gateField?: GateFieldView;
   private hud?: HudView;
+  private pickupPopupView?: CollectiblePickupPopupView;
   private player?: PlayerView;
   private playerInput?: PlayerInputState;
   private playerMovement?: PlayerMovementMotor;
@@ -80,6 +84,11 @@ export class GameScene extends Phaser.Scene {
       frameWidth: 28,
       frameHeight: 28,
     });
+
+    this.load.spritesheet(ASSET_KEYS.hudArcadeFont16, assetUrl('assets/fonts/hud_arcade_font_16.png'), {
+      frameWidth: 16,
+      frameHeight: 20,
+    });
   }
 
   public create(): void {
@@ -89,6 +98,7 @@ export class GameScene extends Phaser.Scene {
     this.scoreState.reset();
     this.heartMultiplierState.reset();
     this.wordProgressState.reset();
+    this.pickupPopupState.clear();
 
     const mazeGrid = MazeGrid.fromDataFile(this.cache.json.get(ASSET_KEYS.mazeLayout));
 
@@ -101,6 +111,7 @@ export class GameScene extends Phaser.Scene {
     this.collectibleField = createLevelOneCollectibles(this, this.collectibleColorCycle.currentColor);
     this.gateField = createRotatingGates(this);
 
+    this.pickupPopupView = new CollectiblePickupPopupView(this);
     this.player = new PlayerView(this);
     this.playerInput = new PlayerInputState(this);
     this.playerMovement = new PlayerMovementMotor(
@@ -120,6 +131,11 @@ export class GameScene extends Phaser.Scene {
   private runOneSimulationTick(): void {
     if (this.hud?.isLifeEntryAnimationActive) {
       this.hud.advanceLifeEntryAnimationOneTick();
+      return;
+    }
+
+    if (this.pickupPopupState.isActive) {
+      this.advancePickupPopupOneTick();
       return;
     }
 
@@ -180,6 +196,37 @@ export class GameScene extends Phaser.Scene {
         this.hud?.setMultiplierStep(this.heartMultiplierState.step);
       }
     }
+
+    if (this.shouldShowPickupPopup(pickup) && scoreCalculation.hasScore) {
+      this.startPickupPopup(pickup.cell, scoreCalculation);
+    }
+  }
+
+  private shouldShowPickupPopup(pickup: CollectiblePickupResult): boolean {
+    return pickup.kind === COLLECTIBLE_KIND.heart || pickup.kind === COLLECTIBLE_KIND.letter;
+  }
+
+  private startPickupPopup(
+    cell: CollectibleCell,
+    scoreCalculation: ReturnType<typeof calculateCollectibleScore>,
+  ): void {
+    this.pickupPopupView?.show(cell, scoreCalculation);
+    this.pickupPopupState.start({
+      cell,
+      baseScore: scoreCalculation.baseScore,
+      multiplier: scoreCalculation.multiplier,
+      scoreDelta: scoreCalculation.scoreDelta,
+    });
+    this.player?.hide();
+  }
+
+  private advancePickupPopupOneTick(): void {
+    if (!this.pickupPopupState.advanceOneTick()) {
+      return;
+    }
+
+    this.pickupPopupView?.clear();
+    this.player?.show();
   }
 
   private syncHudFromGameState(): void {
