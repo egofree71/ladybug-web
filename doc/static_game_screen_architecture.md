@@ -2,7 +2,7 @@
 
 This document describes the current state of the early Phaser web remake of Lady Bug.
 
-The current implementation focuses on rendering the level-1 game screen and the first collectible systems. It is still a visual/gameplay foundation branch: player movement, collisions, enemies and real scoring are intentionally left for later work.
+The current implementation focuses on rendering the level-1 game screen, the first collectible systems, and the initial player entry sequence. It is still a visual/gameplay foundation branch: player movement, collisions, enemies and real scoring are intentionally left for later work.
 
 ## Current Scope
 
@@ -21,7 +21,9 @@ The current branch implements:
   - letters;
   - skulls;
 - a global color cycle for hearts and letters;
-- a fixed-step gameplay timing helper that is independent from the browser display refresh rate.
+- a fixed-step gameplay timing helper that is independent from the browser display refresh rate;
+- the initial HUD-to-maze player entry animation for level 1;
+- a static in-maze player sprite shown at the level-start position after the entry animation finishes.
 
 The current branch does not implement yet:
 
@@ -49,7 +51,9 @@ Important points taken from Godot:
 - the `Level` scene is offset by `Main.cs` with `LevelScenePosition = (27, -1)`;
 - the maze, gates and collectibles belong to the `Level` scene, so they receive this offset;
 - the HUD is rendered in a `CanvasLayer`, so it stays in screen coordinates and does not receive the `Level` scene offset;
-- the collectible color cycle is separate from the maze-border / enemy-release timer.
+- the collectible color cycle is separate from the maze-border / enemy-release timer;
+- the player start cell is `Vector2i(5, 8)` in `Level.tscn`;
+- the HUD life-entry animation is owned by the HUD, while the final in-maze player sprite uses the level coordinate system.
 
 This coordinate-space split matters: the HUD and the playfield do not use the same origin in Godot.
 
@@ -144,6 +148,20 @@ Each gate contains:
 - an orientation: `horizontal` or `vertical`.
 
 For now, this data is only used to display the gates. Later, it can also become the basis for the logical gate state and collision rules.
+
+### `src/game/layout/playerLayout.ts`
+
+Contains the initial player placement constants copied from the Godot remake.
+
+Responsibilities:
+
+- define the level-1 start cell;
+- mirror the Godot gameplay anchor used by `LevelCoordinateSystem.cs`;
+- apply the player render offset from `PlayerMovementTuning.cs`;
+- return the final player sprite center for the start position.
+
+This layout deliberately does not use the collectible grid origin, because Godot
+places actors relative to the Maze node position, not the visible image top-left.
 
 ### `src/game/layout/collectibleLayout.ts`
 
@@ -290,10 +308,24 @@ Responsibilities:
 - display `SPECIAL`;
 - display `EXTRA`;
 - display `x2 x3 x5`;
-- display two reserve life icons;
-- display a temporary score.
+- display reserve life icons;
+- display a temporary score;
+- own the temporary HUD-to-maze life-entry sprite.
 
-The HUD is still mostly static. Dynamic colors for `SPECIAL` and `EXTRA`, multiplier activation and real score updates will be implemented later through a real game state.
+The HUD starts the travelling ladybug from the rightmost available life icon, then leaves only reserve lives visible while that temporary sprite moves into the maze. Dynamic colors for `SPECIAL` and `EXTRA`, multiplier activation and real score updates will be implemented later through a real game state.
+
+### `src/game/render/playerView.ts`
+
+View responsible for the initial player sprite and the entry animation frame setup.
+
+Responsibilities:
+
+- create the hidden in-maze player sprite at the level-start position;
+- show the static player sprite after the HUD entry animation finishes;
+- define the entry movement animations used by the temporary HUD sprite.
+
+This file does not implement player movement yet. It only establishes the correct
+start placement and the visual frame sequences used by the entry animation.
 
 ### `src/game/render/collectibleView.ts`
 
@@ -334,8 +366,11 @@ Responsibilities:
 - create the collectible field;
 - create the rotating gates;
 - create the HUD;
+- create the initial player view;
+- start the HUD-to-maze player entry animation;
 - run the fixed-step clock from Phaser's variable `update()` callback;
-- advance the collectible color cycle from fixed simulation ticks.
+- advance the player entry animation from fixed simulation ticks;
+- advance the collectible color cycle from fixed simulation ticks once the entry animation is finished.
 
 The scene orchestrates the current systems, but it should not become a large gameplay class. Later branches should continue moving dedicated logic into focused modules.
 
@@ -388,7 +423,9 @@ Current rule:
 - Phaser rendering can run at any browser/display cadence;
 - gameplay timers advance through `FixedArcadeClock`;
 - `FixedArcadeClock` uses elapsed milliseconds and fixed simulation steps;
-- the collectible color cycle is separate from the future border timer / enemy-release cycle.
+- the collectible color cycle is separate from the future border timer / enemy-release cycle;
+- the player entry movement is advanced by the same fixed simulation ticks;
+- the collectible color cycle is paused while the entry animation is active, matching the Godot flow where gameplay is frozen during the life-entry sequence.
 
 This separation is important because earlier web projects showed that frame-rate-dependent movement can behave differently on mobile browsers and desktop browsers.
 
@@ -420,7 +457,7 @@ To avoid deploying technical documents when testing the game:
 After this branch is validated, the next branches could be:
 
 ```text
-feature/player-spawn
+feature/player-entry-spawn
 feature/player-grid-movement
 feature/collectible-pickup
 feature/scoring-hud

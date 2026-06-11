@@ -3,10 +3,12 @@ import { ASSET_KEYS, assetUrl } from '../assets';
 import { MAZE } from '../layout/screenLayout';
 import { CollectibleColorCycle } from '../gameplay/collectibles/collectibleColorCycle';
 import { FixedArcadeClock } from '../gameplay/timing/fixedArcadeClock';
-import { createHud } from '../render/hudView';
+import { createHud, type HudView } from '../render/hudView';
 import { createMazeBorderTimer } from '../render/mazeBorderTimerView';
 import { createLevelOneCollectibles, type CollectibleFieldView } from '../render/collectibleView';
 import { createRotatingGates } from '../render/gateView';
+import { getPlayerStartCenter } from '../layout/playerLayout';
+import { PlayerView } from '../render/playerView';
 
 /**
  * First playable-screen shell for the Phaser remake.
@@ -20,6 +22,8 @@ export class GameScene extends Phaser.Scene {
   private readonly arcadeClock = new FixedArcadeClock();
   private readonly collectibleColorCycle = new CollectibleColorCycle();
   private collectibleField?: CollectibleFieldView;
+  private hud?: HudView;
+  private player?: PlayerView;
 
   public constructor() {
     super('GameScene');
@@ -74,7 +78,10 @@ export class GameScene extends Phaser.Scene {
     createMazeBorderTimer(this);
     this.collectibleField = createLevelOneCollectibles(this, this.collectibleColorCycle.currentColor);
     createRotatingGates(this);
-    createHud(this);
+
+    this.player = new PlayerView(this);
+    this.hud = createHud(this);
+    this.startPlayerEntryAnimation();
   }
 
   public override update(_time: number, delta: number): void {
@@ -82,8 +89,27 @@ export class GameScene extends Phaser.Scene {
   }
 
   private runOneSimulationTick(): void {
+    if (this.hud?.isLifeEntryAnimationActive) {
+      this.hud.advanceLifeEntryAnimationOneTick();
+      return;
+    }
+
     if (this.collectibleColorCycle.advanceOneTick()) {
       this.collectibleField?.applyColorCycle(this.collectibleColorCycle.currentColor);
+    }
+  }
+
+  private startPlayerEntryAnimation(): void {
+    this.player?.hide();
+
+    const start = getPlayerStartCenter();
+    const animationStarted = this.hud?.startLifeEntryAnimation(
+      new Phaser.Math.Vector2(start.x, start.y),
+      () => this.player?.showAtStart(),
+    );
+
+    if (!animationStarted) {
+      this.player?.showAtStart();
     }
   }
 }
