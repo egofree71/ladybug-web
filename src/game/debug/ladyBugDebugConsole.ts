@@ -10,6 +10,8 @@ export interface LadyBugDebugConsoleHooks {
   releaseNextEnemy(): LadyBugDebugCommandResult;
   releaseAllEnemies(): LadyBugDebugCommandResult;
   nextLevel(): LadyBugDebugLevelCommandResult;
+  completeExtraWord(): LadyBugDebugWordCommandResult;
+  completeSpecialWord(): LadyBugDebugWordCommandResult;
   runtime(): Record<string, unknown>;
 }
 
@@ -19,6 +21,8 @@ export interface LadyBugDebugApi {
   releaseNextEnemy(): LadyBugDebugCommandResult;
   releaseAllEnemies(): LadyBugDebugCommandResult;
   nextLevel(): LadyBugDebugLevelCommandResult;
+  completeExtraWord(): LadyBugDebugWordCommandResult;
+  completeSpecialWord(): LadyBugDebugWordCommandResult;
   runtime(): Record<string, unknown>;
 }
 
@@ -29,6 +33,8 @@ export interface LadyBugDebugStatus {
   readonly levelNumber: number;
   readonly livesRemaining: number;
   readonly score: number;
+  readonly specialActiveLetters: readonly string[];
+  readonly extraActiveLetters: readonly string[];
   readonly waitingForAudioUnlock: boolean;
   readonly playerEntryActive: boolean;
   readonly playerDeathActive: boolean;
@@ -67,6 +73,15 @@ export interface LadyBugDebugLevelCommandResult {
   readonly status: LadyBugDebugStatus;
 }
 
+export interface LadyBugDebugWordCommandResult {
+  readonly ok: boolean;
+  readonly message: string;
+  readonly completedWord: 'extra' | 'special';
+  readonly awardedLives: number;
+  readonly livesRemaining: number;
+  readonly status: LadyBugDebugStatus;
+}
+
 declare global {
   interface Window {
     ladyBugDebug?: LadyBugDebugApi;
@@ -80,6 +95,8 @@ const HELP_LINES = [
   'ladyBugDebug.releaseNextEnemy() - finish the current border-timer cycle and release the next waiting enemy',
   'ladyBugDebug.releaseAllEnemies() - repeat releaseNextEnemy until no enemy is waiting',
   'ladyBugDebug.nextLevel() - start the between-level transition for the next level',
+  'ladyBugDebug.completeExtraWord() - simulate yellow EXTRA completion and award one life',
+  'ladyBugDebug.completeSpecialWord() - simulate red SPECIAL completion and award three lives',
   'ladyBugDebug.runtime() - return raw scene/runtime objects for deeper manual inspection',
 ] as const;
 
@@ -115,6 +132,18 @@ export function installLadyBugDebugConsole(hooks: LadyBugDebugConsoleHooks): () 
     nextLevel(): LadyBugDebugLevelCommandResult {
       const result = hooks.nextLevel();
       console.info('[LadyBugDebug] nextLevel', result);
+      return result;
+    },
+
+    completeExtraWord(): LadyBugDebugWordCommandResult {
+      const result = hooks.completeExtraWord();
+      console.info('[LadyBugDebug] completeExtraWord', result);
+      return result;
+    },
+
+    completeSpecialWord(): LadyBugDebugWordCommandResult {
+      const result = hooks.completeSpecialWord();
+      console.info('[LadyBugDebug] completeSpecialWord', result);
       return result;
     },
 

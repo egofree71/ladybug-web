@@ -36,6 +36,8 @@ The current branch implements:
 - score updates using the current heart multiplier;
 - blue-heart multiplier progression;
 - SPECIAL / EXTRA word progress from red and yellow letters;
+- EXTRA completion awards one extra life and resets EXTRA progress;
+- SPECIAL completion awards three extra lives in this remake and resets SPECIAL progress;
 - skull contact detection;
 - skull removal and clearing of remaining skulls after player death starts;
 - the red shrink / ghost death sequence ported from Godot;
@@ -48,7 +50,7 @@ The current branch implements:
 - level completion after all flowers, hearts and letters are consumed;
 - two-step between-level flow: frozen cleared board, then PART transition preview screen;
 - direct placement of the player at the start cell after a between-level transition;
-- debug console commands for enemy release and level-transition testing;
+- debug console commands for enemy release, level-transition and word-award testing;
 - Godot-style `GAME OVER` overlay centered inside the maze-inner panel after the final life is lost;
 - automatic return to the title screen after the measured 128-frame game-over duration;
 - gameplay sound effects for player entry, flower pickup, heart / letter pickup, gate rotation, player death, enemy events, vegetable pickup and the maze-border timer tick;
@@ -56,7 +58,6 @@ The current branch implements:
 
 The current branch does not implement yet:
 
-- completed `SPECIAL` / `EXTRA` awards;
 - arcade-perfect refinements for every enemy movement edge case.
 
 The goal is now to validate the first playable multi-level loop, the Godot-style screen flow and the remaining award rules.
@@ -366,7 +367,7 @@ Responsibilities:
 - blue letters are score-only;
 - already-active letters do not change word progress again.
 
-Completed-word awards and level transitions are not implemented yet.
+Completed-word awards are handled by `GameScene`: EXTRA adds one life, SPECIAL adds three lives in this remake, and the completed word is reset so a future award requires collecting the full word again. SPECIAL / EXTRA completion does not trigger an immediate separate level transition yet; normal board-clear level progression remains responsible for moving to the next level.
 
 ### `src/game/gameplay/maze/mazeGrid.ts`
 
@@ -613,7 +614,7 @@ Responsibilities:
 - advance the player entry animation from fixed simulation ticks;
 - advance gate timers, collectible colors and player movement from fixed simulation ticks once the entry animation is finished;
 - consume flowers, hearts and letters from the movement result;
-- apply score, multiplier and word-progress consequences to gameplay state and HUD;
+- apply score, multiplier, word-progress and completed-word life-award consequences to gameplay state and HUD;
 - start the heart / letter pickup popup and pause normal simulation until it completes;
 - detect skull pickups and start the player death sequence;
 - decrement lives and update the HUD life display after death;

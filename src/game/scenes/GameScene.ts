@@ -11,7 +11,7 @@ import { calculateCollectibleScore } from '../gameplay/scoring/collectibleScoreS
 import { HeartMultiplierState } from '../gameplay/scoring/heartMultiplierState';
 import { ScoreState } from '../gameplay/scoring/scoreState';
 import { FixedArcadeClock } from '../gameplay/timing/fixedArcadeClock';
-import { WordProgressState } from '../gameplay/words/wordProgressState';
+import { WORD_COMPLETION_KIND, WordProgressState, type LetterWordProgressResult } from '../gameplay/words/wordProgressState';
 import { MazeGrid } from '../gameplay/maze/mazeGrid';
 import { PlayerInputState } from '../gameplay/player/playerInputState';
 import { PlayerMovementMotor } from '../gameplay/player/playerMovementMotor';
@@ -36,6 +36,7 @@ import {
   type LadyBugDebugEnemyStatus,
   type LadyBugDebugLevelCommandResult,
   type LadyBugDebugStatus,
+  type LadyBugDebugWordCommandResult,
 } from '../debug/ladyBugDebugConsole';
 
 interface LevelSetupOptions {
@@ -46,6 +47,8 @@ interface LevelSetupOptions {
 const END_LEVEL_FREEZE_DURATION_TICKS = 120;
 const LEVEL_TRANSITION_SCREEN_DURATION_TICKS = 120;
 const GAME_OVER_DURATION_TICKS = 0x80;
+const EXTRA_COMPLETION_LIFE_AWARD = 1;
+const SPECIAL_COMPLETION_LIFE_AWARD = 3;
 
 /**
  * First gameplay scene for the Phaser remake.
@@ -527,10 +530,7 @@ export class GameScene extends Phaser.Scene {
 
     if (pickup.kind === COLLECTIBLE_KIND.letter) {
       const wordResult = this.wordProgressState.tryApplyLetter(pickup.letter, pickup.color);
-
-      if (wordResult.changed) {
-        this.hud?.setWordProgress(this.wordProgressState);
-      }
+      this.applyLetterWordProgressResult(wordResult);
     }
 
     if (pickup.kind === COLLECTIBLE_KIND.heart && pickup.color === COLLECTIBLE_COLOR.blue) {
@@ -542,6 +542,38 @@ export class GameScene extends Phaser.Scene {
     if (this.shouldShowPickupPopup(pickup) && scoreCalculation.hasScore) {
       this.startPickupPopup(pickup.cell, scoreCalculation);
     }
+  }
+
+  private applyLetterWordProgressResult(wordResult: LetterWordProgressResult): void {
+    if (!wordResult.changed) {
+      return;
+    }
+
+    this.hud?.setWordProgress(this.wordProgressState);
+
+    if (wordResult.completedWord === WORD_COMPLETION_KIND.extra) {
+      this.awardLives(EXTRA_COMPLETION_LIFE_AWARD);
+      this.wordProgressState.resetExtra();
+      this.hud?.setWordProgress(this.wordProgressState);
+      return;
+    }
+
+    if (wordResult.completedWord === WORD_COMPLETION_KIND.special) {
+      this.awardLives(SPECIAL_COMPLETION_LIFE_AWARD);
+      this.wordProgressState.resetSpecial();
+      this.hud?.setWordProgress(this.wordProgressState);
+    }
+  }
+
+  private awardLives(count: number): void {
+    const awardedLives = Math.max(0, Math.floor(count));
+
+    if (awardedLives <= 0) {
+      return;
+    }
+
+    this.livesRemaining += awardedLives;
+    this.hud?.setLives(this.livesRemaining);
   }
 
 
@@ -798,6 +830,8 @@ export class GameScene extends Phaser.Scene {
       releaseNextEnemy: () => this.debugReleaseNextEnemy(),
       releaseAllEnemies: () => this.debugReleaseAllEnemies(),
       nextLevel: () => this.debugAdvanceToNextLevel(),
+      completeExtraWord: () => this.debugCompleteExtraWord(),
+      completeSpecialWord: () => this.debugCompleteSpecialWord(),
       runtime: () => ({
         scene: this,
         currentLevelNumber: this.currentLevelNumber,
@@ -806,6 +840,7 @@ export class GameScene extends Phaser.Scene {
         vegetableBonus: this.vegetableBonus,
         playerMovement: this.playerMovement,
         collectibleField: this.collectibleField,
+        wordProgress: this.wordProgressState,
         gateSystem: this.gateField?.gateSystem,
         titleScreen: this.titleScreenView,
         gameOver: this.gameOverView,
@@ -932,6 +967,71 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
+  private debugCompleteExtraWord(): LadyBugDebugWordCommandResult {
+    if (!this.canApplyDebugWordCompletion()) {
+      return this.createDebugWordCommandResult(
+        false,
+        'Cannot complete EXTRA outside active gameplay.',
+        WORD_COMPLETION_KIND.extra,
+        0,
+      );
+    }
+
+    this.wordProgressState.resetExtra();
+    let awardedLives = 0;
+
+    for (const letter of WordProgressState.extraWordLetters) {
+      const beforeLives = this.livesRemaining;
+      const wordResult = this.wordProgressState.tryApplyLetter(letter, COLLECTIBLE_COLOR.yellow);
+      this.applyLetterWordProgressResult(wordResult);
+      awardedLives += Math.max(0, this.livesRemaining - beforeLives);
+    }
+
+    return this.createDebugWordCommandResult(
+      true,
+      `Completed EXTRA and awarded ${awardedLives} ${awardedLives === 1 ? 'life' : 'lives'}.`,
+      WORD_COMPLETION_KIND.extra,
+      awardedLives,
+    );
+  }
+
+  private debugCompleteSpecialWord(): LadyBugDebugWordCommandResult {
+    if (!this.canApplyDebugWordCompletion()) {
+      return this.createDebugWordCommandResult(
+        false,
+        'Cannot complete SPECIAL outside active gameplay.',
+        WORD_COMPLETION_KIND.special,
+        0,
+      );
+    }
+
+    this.wordProgressState.resetSpecial();
+    let awardedLives = 0;
+
+    for (const letter of WordProgressState.specialWordLetters) {
+      const beforeLives = this.livesRemaining;
+      const wordResult = this.wordProgressState.tryApplyLetter(letter, COLLECTIBLE_COLOR.red);
+      this.applyLetterWordProgressResult(wordResult);
+      awardedLives += Math.max(0, this.livesRemaining - beforeLives);
+    }
+
+    return this.createDebugWordCommandResult(
+      true,
+      `Completed SPECIAL and awarded ${awardedLives} ${awardedLives === 1 ? 'life' : 'lives'}.`,
+      WORD_COMPLETION_KIND.special,
+      awardedLives,
+    );
+  }
+
+  private canApplyDebugWordCompletion(): boolean {
+    return this.isGameStarted &&
+      !this.isTitleScreenActive &&
+      !this.isGameOverActive &&
+      !this.isPlayerDeathSequenceActive &&
+      !this.isEndLevelFreezeActive &&
+      !this.isLevelTransitionScreenActive;
+  }
+
   private advanceBorderTimerUntilReleaseOpportunityForDebug(): boolean {
     if (!this.borderTimer) {
       return false;
@@ -981,6 +1081,22 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
+  private createDebugWordCommandResult(
+    ok: boolean,
+    message: string,
+    completedWord: typeof WORD_COMPLETION_KIND.extra | typeof WORD_COMPLETION_KIND.special,
+    awardedLives: number,
+  ): LadyBugDebugWordCommandResult {
+    return {
+      ok,
+      message,
+      completedWord,
+      awardedLives,
+      livesRemaining: this.livesRemaining,
+      status: this.createDebugStatus(),
+    };
+  }
+
   private createDebugStatus(): LadyBugDebugStatus {
     const enemySystem = this.enemies?.enemySystem;
 
@@ -991,6 +1107,8 @@ export class GameScene extends Phaser.Scene {
       levelNumber: this.currentLevelNumber,
       livesRemaining: this.livesRemaining,
       score: this.scoreState.score,
+      specialActiveLetters: WordProgressState.specialWordLetters.filter((letter) => this.wordProgressState.isSpecialLetterActive(letter)),
+      extraActiveLetters: WordProgressState.extraWordLetters.filter((letter) => this.wordProgressState.isExtraLetterActive(letter)),
       waitingForAudioUnlock: this.isWaitingForAudioUnlockBeforeEntry,
       playerEntryActive: this.hud?.isLifeEntryAnimationActive ?? false,
       playerDeathActive: this.isPlayerDeathSequenceActive,
