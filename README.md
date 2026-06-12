@@ -61,7 +61,6 @@ Implemented systems include:
 - temporary enemy freeze after collecting the vegetable, while enemies remain fatal;
 - level-dependent enemy sprites and chase timing;
 - gameplay sound effects for entry, pickups, gates, timer, enemies, death and level ending;
-- browser debug commands for testing gameplay states.
 
 Some systems are still approximate or intentionally not implemented yet:
 
@@ -77,9 +76,10 @@ Some systems are still approximate or intentionally not implemented yet:
 | Action | Input |
 | --- | --- |
 | Start game | Any accepted keyboard key on the title screen |
+| Toggle fullscreen | `F` |
 | Move | Arrow keys |
 
-The title screen ignores system / utility keys such as `Escape`, `F1`, `F2` and `F12`.
+The title screen ignores system / utility keys such as `Escape`, `F1`, `F2` and `F12`. The `F` key toggles fullscreen instead of starting the game.
 
 ### Gamepad
 

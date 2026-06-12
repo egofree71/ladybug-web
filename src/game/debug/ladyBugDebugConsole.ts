@@ -31,6 +31,8 @@ export interface LadyBugDebugStatus {
   readonly titleScreenActive: boolean;
   readonly gameOverActive: boolean;
   readonly gamepadConnected: boolean;
+  readonly fullscreenSupported: boolean;
+  readonly fullscreenActive: boolean;
   readonly levelNumber: number;
   readonly livesRemaining: number;
   readonly score: number;

@@ -35,6 +35,7 @@ import { createTitleScreenView, type TitleScreenView } from '../render/titleScre
 import { createGameOverView, type GameOverView } from '../render/gameOverView';
 import { enemyPlayerCollisionActive } from '../gameplay/enemies/enemyMovementAi';
 import { hasConnectedGamepad } from '../input/gamepadInput';
+import { isFullscreenActive, isFullscreenSupported, isFullscreenToggleKey, toggleGameFullscreen } from '../input/fullscreenToggle';
 import { MONSTER_DIR, type MonsterDir } from '../gameplay/enemies/monsterDirection';
 import {
   installLadyBugDebugConsole,
@@ -103,6 +104,19 @@ export class GameScene extends Phaser.Scene {
   private queuedNextLevelNumber = 0;
   private queuedNextLevelSpawnPlan?: CollectibleSpawnPlan;
   private uninstallDebugConsole?: () => void;
+
+  private readonly toggleFullscreenFromKeyboard = (event: KeyboardEvent): void => {
+    if (!isFullscreenToggleKey(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    void toggleGameFullscreen(this);
+  };
+
+  private readonly refreshScaleAfterFullscreenChange = (): void => {
+    this.scale.refresh();
+  };
 
   public constructor() {
     super('GameScene');
@@ -224,8 +238,22 @@ export class GameScene extends Phaser.Scene {
     this.mazeGrid = MazeGrid.fromDataFile(this.cache.json.get(ASSET_KEYS.mazeLayout));
     this.titleScreenView = createTitleScreenView(this);
     this.gameOverView = createGameOverView(this);
+    this.installFullscreenShortcut();
     this.installDebugConsole();
     this.showTitleScreen();
+  }
+
+
+  private installFullscreenShortcut(): void {
+    this.input.keyboard?.on('keydown', this.toggleFullscreenFromKeyboard);
+    document.addEventListener('fullscreenchange', this.refreshScaleAfterFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', this.refreshScaleAfterFullscreenChange);
+
+    this.events.once('shutdown', () => {
+      this.input.keyboard?.off('keydown', this.toggleFullscreenFromKeyboard);
+      document.removeEventListener('fullscreenchange', this.refreshScaleAfterFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', this.refreshScaleAfterFullscreenChange);
+    });
   }
 
   private showTitleScreen(): void {
@@ -1112,6 +1140,8 @@ export class GameScene extends Phaser.Scene {
       titleScreenActive: this.isTitleScreenActive,
       gameOverActive: this.isGameOverActive,
       gamepadConnected: hasConnectedGamepad(this),
+      fullscreenSupported: isFullscreenSupported(),
+      fullscreenActive: isFullscreenActive(),
       levelNumber: this.currentLevelNumber,
       livesRemaining: this.livesRemaining,
       score: this.scoreState.score,

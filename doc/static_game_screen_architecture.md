@@ -11,6 +11,7 @@ The current branch implements:
 - the Phaser canvas and scaling setup;
 - a Godot-style title screen with the official logo, animated preview enemies, animated ladybug prompt marker and pulsing `PRESS ANY KEY`;
 - title-screen start input before the playable level is created, from keyboard or gamepad;
+- optional fullscreen toggle with the `F` key;
 - the maze background;
 - the animated outer border enemy-release timer;
 - the 20 green rotating gates, displayed in their initial state;
@@ -107,6 +108,8 @@ Responsibilities:
 - create the `Phaser.Game` instance;
 - enable either normal scaling mode or native mode depending on the URL.
 
+Fullscreen itself is requested later from `GameScene`, because browsers require a real user gesture before a page can enter fullscreen.
+
 The normal mode uses `Phaser.Scale.FIT` to display the whole game screen inside the browser window.
 
 Native mode can be enabled with:
@@ -132,7 +135,8 @@ Responsibilities:
 - black background;
 - center the game container;
 - remove default browser margins;
-- use a different behavior when native mode is enabled.
+- use a different behavior when native mode is enabled;
+- keep the fullscreen game container centered on a black background when optional fullscreen mode is active.
 
 In normal mode, the page tries to show the whole canvas without scrollbars.
 
@@ -419,6 +423,21 @@ Responsibilities:
 
 The D-pad has priority over the analog stick because Lady Bug needs crisp four-way movement.
 
+### `src/game/input/fullscreenToggle.ts`
+
+Small browser fullscreen adapter for the desktop web build.
+
+Responsibilities:
+
+- recognize the `F` key as the optional fullscreen toggle;
+- avoid hijacking browser shortcuts such as Ctrl+F;
+- request fullscreen only from a real keyboard gesture;
+- use the Phaser game container as the fullscreen target;
+- report fullscreen availability and active state for debug status;
+- refresh Phaser scaling after entering or leaving fullscreen.
+
+The title screen treats `F` as a fullscreen command instead of a start-game key.
+
 ### `src/game/gameplay/player/`
 
 Player input, movement and death-sequence subsystem.
@@ -694,6 +713,12 @@ For measurements, it is best to:
 - keep the browser zoom at 100%;
 - remember that operating-system display scaling can still affect the final screenshot.
 
+### Optional Fullscreen Mode
+
+Pressing `F` toggles browser fullscreen around the game container.
+
+The game does not enter fullscreen automatically, because browsers require fullscreen requests to come from a user gesture. In normal scale mode, Phaser's existing FIT scaling keeps the full `800 x 880` playfield visible inside the fullscreen area. In native mode, fullscreen remains mostly a display wrapper because native mode deliberately keeps the canvas at its real pixel size for measurement work.
+
 ## Timing Rules
 
 The project should avoid tying gameplay speed to the display refresh rate.
@@ -712,6 +737,7 @@ Current rule:
 - the collectible color cycle, gates, player movement and pickup processing are paused while the player death sequence is active;
 - after the title screen, the first playable board is preceded by the same 120-tick PART transition screen used between later levels;
 - after a board clear, gameplay is paused for a 120-tick frozen-board end-level phase, then for a 120-tick PART transition screen;
+- fullscreen toggling is an input/display concern and does not advance gameplay timers;
 - sound effects are triggered from gameplay events or fixed simulation ticks, not from render-frame callbacks;
 - the audible maze-border timer cadence is reset with the visual timer when a board attempt restarts;
 - for level 1, the timer sound cadence matches the visible border cadence: one restart every 9 fixed simulation ticks;
@@ -721,47 +747,6 @@ Current rule:
 This separation is important because earlier web projects showed that frame-rate-dependent movement can behave differently on mobile browsers and desktop browsers.
 
 ## Deployment and Documentation
-
-The project is intended to be deployed publicly through GitHub Pages from the Vite build output.
-
-### GitHub Pages workflow
-
-The repository contains:
-
-```text
-.github/workflows/deploy-pages.yml
-```
-
-The workflow:
-
-- runs on pushes to `main`;
-- can also be started manually from the GitHub Actions tab;
-- installs dependencies with `npm ci`;
-- builds the game with `npm run build`;
-- uploads only the generated `dist` directory as the GitHub Pages artifact;
-- deploys that artifact to the `github-pages` environment.
-
-The workflow uses Node.js 24 because the current Vite dependency requires a modern Node runtime.
-
-The Vite config keeps the public base path as:
-
-```text
-/ladybug-web/
-```
-
-This matches the expected GitHub Pages project URL when the repository is published as:
-
-```text
-https://egofree71.github.io/ladybug-web/
-```
-
-In the GitHub repository settings, Pages must use:
-
-```text
-Build and deployment -> Source -> GitHub Actions
-```
-
-### Documentation placement
 
 This document must stay in:
 
@@ -777,7 +762,7 @@ public/
 
 With Vite, the `public/` directory is copied into the final build. The `doc/` directory is not included in `dist` as long as it is not imported from the code.
 
-To avoid deploying technical documents:
+To avoid deploying technical documents when testing the game:
 
 - keep documentation files in `doc/`;
 - do not import them from `src/`;

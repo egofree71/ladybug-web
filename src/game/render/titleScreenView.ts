@@ -6,6 +6,7 @@ import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 import { SCREEN } from '../layout/screenLayout';
 import { isGamepadStartPressed } from '../input/gamepadInput';
+import { isFullscreenToggleKey } from '../input/fullscreenToggle';
 import { createPixelText } from './pixelTextView';
 
 const TITLE_SCREEN_DEPTH = 500;
@@ -36,6 +37,7 @@ class PhaserTitleScreenView implements TitleScreenView {
   private readonly scene: Phaser.Scene;
   private readonly objects: Phaser.GameObjects.GameObject[] = [];
   private promptText?: Phaser.GameObjects.Container;
+  private fullscreenHintText?: Phaser.GameObjects.Container;
   private visible = false;
   private startCallback?: () => void;
   private pulseTimerSeconds = 0;
@@ -86,6 +88,7 @@ class PhaserTitleScreenView implements TitleScreenView {
     const wave = 0.5 + 0.5 * Math.sin(this.pulseTimerSeconds * PROMPT_PULSE_SPEED);
     const brightness = Phaser.Math.Linear(PROMPT_PULSE_MINIMUM_BRIGHTNESS, 1, wave);
     this.promptText.setAlpha(brightness);
+    this.fullscreenHintText?.setAlpha(brightness);
     this.updateGamepadStartState();
   }
 
@@ -98,6 +101,7 @@ class PhaserTitleScreenView implements TitleScreenView {
 
     this.objects.length = 0;
     this.promptText = undefined;
+    this.fullscreenHintText = undefined;
     this.wasGamepadStartPressed = false;
     this.visible = false;
     this.startCallback = undefined;
@@ -151,7 +155,7 @@ class PhaserTitleScreenView implements TitleScreenView {
     this.objects.push(logo);
   }
 
-  /** Adds the animated ladybug and the single PRESS ANY KEY prompt below the logo. */
+  /** Adds the animated ladybug, the PRESS ANY KEY prompt and a fullscreen hint. */
   private addBottomPrompt(): void {
     const logoBottomY = LOGO_CENTER_Y + LOGO_PIXEL_HEIGHT * 0.5;
     const bottomAreaCenterY = logoBottomY + (SCREEN.height - logoBottomY) * 0.5;
@@ -168,7 +172,7 @@ class PhaserTitleScreenView implements TitleScreenView {
     this.promptText = createPixelText(this.scene, {
       text: 'PRESS ANY KEY',
       x: SCREEN.width * 0.5,
-      y: bottomAreaCenterY,
+      y: bottomAreaCenterY - 12,
       fontSize: 26,
       tint: WHITE,
       align: 'center',
@@ -176,7 +180,18 @@ class PhaserTitleScreenView implements TitleScreenView {
       depth: TITLE_SCREEN_DEPTH + 1,
     });
 
-    this.objects.push(ladybug, this.promptText);
+    this.fullscreenHintText = createPixelText(this.scene, {
+      text: 'PRESS F FOR FULL SCREEN',
+      x: SCREEN.width * 0.5,
+      y: bottomAreaCenterY + 62,
+      fontSize: 26,
+      tint: WHITE,
+      align: 'center',
+      originY: 0.5,
+      depth: TITLE_SCREEN_DEPTH + 1,
+    });
+
+    this.objects.push(ladybug, this.promptText, this.fullscreenHintText);
   }
 
   private addEnemy(
@@ -273,5 +288,9 @@ function isStartKey(event: KeyboardEvent): boolean {
     return false;
   }
 
-  return event.key !== 'Escape' && event.key !== 'F1' && event.key !== 'F2' && event.key !== 'F12';
+  return !isFullscreenToggleKey(event) &&
+    event.key !== 'Escape' &&
+    event.key !== 'F1' &&
+    event.key !== 'F2' &&
+    event.key !== 'F12';
 }
