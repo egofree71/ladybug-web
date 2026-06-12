@@ -78,6 +78,9 @@ async function bootstrap(): Promise<void> {
     backgroundColor: '#000000',
     pixelArt: true,
     roundPixels: true,
+    input: {
+      gamepad: true,
+    },
     scale: {
       // Normal mode: uniform fit, useful for playing and previewing the whole
       // screen. Native mode: no scaling, useful for checking exact pixel gaps.

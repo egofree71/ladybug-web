@@ -29,6 +29,7 @@ import { createLevelTransitionView, type LevelTransitionView } from '../render/l
 import { createTitleScreenView, type TitleScreenView } from '../render/titleScreenView';
 import { createGameOverView, type GameOverView } from '../render/gameOverView';
 import { enemyPlayerCollisionActive } from '../gameplay/enemies/enemyMovementAi';
+import { hasConnectedGamepad } from '../input/gamepadInput';
 import { MONSTER_DIR, type MonsterDir } from '../gameplay/enemies/monsterDirection';
 import {
   installLadyBugDebugConsole,
@@ -844,6 +845,7 @@ export class GameScene extends Phaser.Scene {
         gateSystem: this.gateField?.gateSystem,
         titleScreen: this.titleScreenView,
         gameOver: this.gameOverView,
+        gamepad: this.input.gamepad,
       }),
     });
 
@@ -1104,6 +1106,7 @@ export class GameScene extends Phaser.Scene {
       gameStarted: this.isGameStarted,
       titleScreenActive: this.isTitleScreenActive,
       gameOverActive: this.isGameOverActive,
+      gamepadConnected: hasConnectedGamepad(this),
       levelNumber: this.currentLevelNumber,
       livesRemaining: this.livesRemaining,
       score: this.scoreState.score,

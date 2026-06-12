@@ -10,7 +10,7 @@ The current branch implements:
 
 - the Phaser canvas and scaling setup;
 - a Godot-style title screen with the official logo, animated preview enemies, animated ladybug prompt marker and pulsing `PRESS ANY KEY`;
-- title-screen start input before the playable level is created;
+- title-screen start input before the playable level is created, from keyboard or gamepad;
 - the maze background;
 - the animated outer border enemy-release timer;
 - the 20 green rotating gates, displayed in their initial state;
@@ -27,7 +27,7 @@ The current branch implements:
 - a pre-level `PART 1` transition screen after the title screen and before the first HUD-to-maze entry;
 - the initial HUD-to-maze player entry animation for level 1;
 - a static in-maze player sprite shown at the level-start position after the entry animation finishes;
-- keyboard-driven player movement advanced from fixed simulation ticks;
+- keyboard-driven and gamepad-driven player movement advanced from fixed simulation ticks;
 - static maze collision checks based on `maze.json`;
 - arcade-style turn windows and assisted turns ported from the Godot movement motor;
 - interactive rotating gates with logical blocking state and short turning visuals;
@@ -89,7 +89,7 @@ Important points taken from Godot:
 - the current collectible field and gate orientations are preserved after losing a life;
 - the player movement motor is reset to the start cell, then the next reserve life enters from the HUD;
 - gameplay sounds are owned by a central helper in Godot, with separate effects for flower pickup, heart / letter pickup, gate rotation, player entry and death sequence start;
-- browser audio may be locked until the first user gesture, so the title-screen start input acts as the normal unlock opportunity before the first PART panel and HUD entry sequence. If audio is still unavailable, the entry jingle is skipped rather than played late.
+- browser audio may be locked until the first user gesture, so the title-screen keyboard/gamepad start input acts as the normal unlock opportunity before the first PART panel and HUD entry sequence. If audio is still unavailable, the entry jingle is skipped rather than played late.
 
 This coordinate-space split matters: the HUD and the playfield do not use the same origin in Godot.
 
@@ -405,13 +405,27 @@ Responsibilities:
 - keep the short visual turning state for fixed simulation ticks;
 - expose accepted push counts to the scene so the gate sound can play exactly when a push succeeds.
 
+### `src/game/input/gamepadInput.ts`
+
+Small adapter around Phaser's browser gamepad plugin.
+
+Responsibilities:
+
+- read the first connected gamepad exposed by Phaser;
+- report whether a gamepad is currently connected for debug status;
+- map the D-pad to arcade directions;
+- map the left analog stick to one dominant cardinal direction with a deadzone;
+- expose a simple title-screen start check using the standard A / Start buttons.
+
+The D-pad has priority over the analog stick because Lady Bug needs crisp four-way movement.
+
 ### `src/game/gameplay/player/`
 
 Player input, movement and death-sequence subsystem.
 
 Responsibilities:
 
-- keep last-pressed-wins keyboard input state;
+- keep last-pressed-wins keyboard and gamepad input state;
 - move the player in integer arcade pixels;
 - preserve short-tap movement context;
 - apply rail snapping when starting or resuming movement;
@@ -521,7 +535,8 @@ Responsibilities:
 - display the four decorative animated enemies above the logo using the same level/order/positions as `TitleScreen.cs`;
 - display an animated ladybug marker beside the start prompt;
 - pulse `PRESS ANY KEY` between white and light grey;
-- accept normal keyboard input, while ignoring Escape and debug function keys.
+- accept normal keyboard input, while ignoring Escape and debug function keys;
+- accept gamepad start from the primary controller using the standard A / Start buttons.
 
 ### `src/game/render/gameOverView.ts`
 
@@ -606,7 +621,7 @@ Responsibilities:
 - create the collectible field;
 - create the rotating gates and their runtime state;
 - create the HUD;
-- create the player view, input state and movement motor;
+- create the player view, keyboard/gamepad input state and movement motor;
 - create the level transition view;
 - start the HUD-to-maze player entry animation;
 - start the initial entry animation immediately even if browser audio is locked, so the game never appears frozen before the HUD life movement;
@@ -700,7 +715,7 @@ Current rule:
 - sound effects are triggered from gameplay events or fixed simulation ticks, not from render-frame callbacks;
 - the audible maze-border timer cadence is reset with the visual timer when a board attempt restarts;
 - for level 1, the timer sound cadence matches the visible border cadence: one restart every 9 fixed simulation ticks;
-- the title-screen start input is the expected browser audio-unlock moment; the first HUD-to-maze entry still does not block if the sound manager remains locked;
+- the title-screen keyboard/gamepad start input is the expected browser audio-unlock moment; the first HUD-to-maze entry still does not block if the sound manager remains locked;
 - after the last life is lost, the GAME OVER overlay stays visible for 128 fixed ticks, then the scene returns to the title screen.
 
 This separation is important because earlier web projects showed that frame-rate-dependent movement can behave differently on mobile browsers and desktop browsers.

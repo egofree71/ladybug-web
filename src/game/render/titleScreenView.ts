@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 import { SCREEN } from '../layout/screenLayout';
+import { isGamepadStartPressed } from '../input/gamepadInput';
 import { createPixelText } from './pixelTextView';
 
 const TITLE_SCREEN_DEPTH = 500;
@@ -34,6 +35,7 @@ class PhaserTitleScreenView implements TitleScreenView {
   private visible = false;
   private startCallback?: () => void;
   private pulseTimerSeconds = 0;
+  private wasGamepadStartPressed = false;
 
   private readonly startFromKeyboard = (event: KeyboardEvent): void => {
     if (!isStartKey(event)) {
@@ -58,6 +60,7 @@ class PhaserTitleScreenView implements TitleScreenView {
     this.visible = true;
     this.startCallback = onStartRequested;
     this.pulseTimerSeconds = 0;
+    this.wasGamepadStartPressed = isGamepadStartPressed(this.scene);
 
     ensureTitleScreenAnimations(this.scene);
 
@@ -79,6 +82,7 @@ class PhaserTitleScreenView implements TitleScreenView {
     const wave = 0.5 + 0.5 * Math.sin(this.pulseTimerSeconds * PROMPT_PULSE_SPEED);
     const brightness = Phaser.Math.Linear(PROMPT_PULSE_MINIMUM_BRIGHTNESS, 1, wave);
     this.promptText.setAlpha(brightness);
+    this.updateGamepadStartState();
   }
 
   public hide(): void {
@@ -90,12 +94,25 @@ class PhaserTitleScreenView implements TitleScreenView {
 
     this.objects.length = 0;
     this.promptText = undefined;
+    this.wasGamepadStartPressed = false;
     this.visible = false;
     this.startCallback = undefined;
   }
 
   public destroy(): void {
     this.hide();
+  }
+
+
+  private updateGamepadStartState(): void {
+    const pressed = isGamepadStartPressed(this.scene);
+
+    if (pressed && !this.wasGamepadStartPressed) {
+      this.requestStart();
+      return;
+    }
+
+    this.wasGamepadStartPressed = pressed;
   }
 
   private addBackground(): void {

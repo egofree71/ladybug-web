@@ -30,6 +30,7 @@ export interface LadyBugDebugStatus {
   readonly gameStarted: boolean;
   readonly titleScreenActive: boolean;
   readonly gameOverActive: boolean;
+  readonly gamepadConnected: boolean;
   readonly levelNumber: number;
   readonly livesRemaining: number;
   readonly score: number;
@@ -91,7 +92,7 @@ declare global {
 
 const HELP_LINES = [
   'ladyBugDebug.help() - show available debug commands',
-  'ladyBugDebug.status() - inspect lives, score and enemy states',
+  'ladyBugDebug.status() - inspect lives, score, gamepad and enemy states',
   'ladyBugDebug.releaseNextEnemy() - finish the current border-timer cycle and release the next waiting enemy',
   'ladyBugDebug.releaseAllEnemies() - repeat releaseNextEnemy until no enemy is waiting',
   'ladyBugDebug.nextLevel() - start the between-level transition for the next level',

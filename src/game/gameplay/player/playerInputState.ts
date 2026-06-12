@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
+import { readGamepadDirectionState, type GamepadDirectionName } from '../../input/gamepadInput';
 import { type Vector2i, VEC2 } from '../math/vector2';
 
-type DirectionName = 'left' | 'right' | 'up' | 'down';
+type DirectionName = GamepadDirectionName;
 
 interface DirectionSlot {
   readonly direction: Vector2i;
-  pressed: boolean;
+  keyboardPressed: boolean;
+  gamepadPressed: boolean;
   order: number;
 }
 
@@ -21,7 +23,7 @@ const KEY_TO_DIRECTION: Readonly<Record<string, DirectionName | undefined>> = {
 };
 
 /**
- * Keyboard input buffer for the player.
+ * Keyboard and gamepad input buffer for the player.
  *
  * The current rule mirrors Godot's PlayerInputState: when several directions are
  * held, the most recently pressed held direction wins. No movement is performed
@@ -31,23 +33,28 @@ const KEY_TO_DIRECTION: Readonly<Record<string, DirectionName | undefined>> = {
 export class PlayerInputState {
   private sequence = 0;
 
+  private readonly scene: Phaser.Scene;
+
   private readonly slots: Record<DirectionName, DirectionSlot> = {
-    left: { direction: VEC2.left, pressed: false, order: 0 },
-    right: { direction: VEC2.right, pressed: false, order: 0 },
-    up: { direction: VEC2.up, pressed: false, order: 0 },
-    down: { direction: VEC2.down, pressed: false, order: 0 },
+    left: { direction: VEC2.left, keyboardPressed: false, gamepadPressed: false, order: 0 },
+    right: { direction: VEC2.right, keyboardPressed: false, gamepadPressed: false, order: 0 },
+    up: { direction: VEC2.up, keyboardPressed: false, gamepadPressed: false, order: 0 },
+    down: { direction: VEC2.down, keyboardPressed: false, gamepadPressed: false, order: 0 },
   };
 
   public constructor(scene: Phaser.Scene) {
+    this.scene = scene;
     scene.input.keyboard?.on('keydown', (event: KeyboardEvent) => this.handleKeyDown(event));
     scene.input.keyboard?.on('keyup', (event: KeyboardEvent) => this.handleKeyUp(event));
   }
 
   public readPressedDirection(): Vector2i {
+    this.pollGamepadDirections();
+
     let newestSlot: DirectionSlot | undefined;
 
     for (const slot of Object.values(this.slots)) {
-      if (!slot.pressed) {
+      if (!isSlotPressed(slot)) {
         continue;
       }
 
@@ -66,11 +73,7 @@ export class PlayerInputState {
     }
 
     const slot = this.slots[directionName];
-    if (!slot.pressed) {
-      slot.order = ++this.sequence;
-    }
-
-    slot.pressed = true;
+    this.markKeyboardPressed(slot);
     event.preventDefault();
   }
 
@@ -80,7 +83,35 @@ export class PlayerInputState {
       return;
     }
 
-    this.slots[directionName].pressed = false;
+    this.slots[directionName].keyboardPressed = false;
     event.preventDefault();
   }
+
+  private pollGamepadDirections(): void {
+    const gamepadState = readGamepadDirectionState(this.scene);
+
+    for (const directionName of Object.keys(this.slots) as DirectionName[]) {
+      this.applyGamepadDirectionState(this.slots[directionName], gamepadState[directionName]);
+    }
+  }
+
+  private markKeyboardPressed(slot: DirectionSlot): void {
+    if (!isSlotPressed(slot)) {
+      slot.order = ++this.sequence;
+    }
+
+    slot.keyboardPressed = true;
+  }
+
+  private applyGamepadDirectionState(slot: DirectionSlot, pressed: boolean): void {
+    if (!isSlotPressed(slot) && pressed) {
+      slot.order = ++this.sequence;
+    }
+
+    slot.gamepadPressed = pressed;
+  }
+}
+
+function isSlotPressed(slot: DirectionSlot): boolean {
+  return slot.keyboardPressed || slot.gamepadPressed;
 }
