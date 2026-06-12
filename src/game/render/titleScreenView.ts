@@ -21,6 +21,12 @@ const PROMPT_PULSE_SPEED = 4;
 const ENEMY_ANIMATION_SPEED = 6;
 const PLAYER_ANIMATION_SPEED = 6;
 
+const PROMPT_LABEL_WIDTH = 620;
+const TITLE_LADYBUG_OFFSET_X = 38;
+const TITLE_LADYBUG_OFFSET_Y = -34;
+const PRESS_ANY_KEY_OFFSET_Y = -12;
+const FULLSCREEN_HINT_OFFSET_Y = 62;
+
 const TITLE_PLAYER_MOVE_RIGHT = 'title-player-move-right';
 const TITLE_ENEMY_ANIMATION_PREFIX = 'title-enemy';
 
@@ -160,11 +166,11 @@ class PhaserTitleScreenView implements TitleScreenView {
     const logoBottomY = LOGO_CENTER_Y + LOGO_PIXEL_HEIGHT * 0.5;
     const bottomAreaCenterY = logoBottomY + (SCREEN.height - logoBottomY) * 0.5;
 
-    // Mirrors TitleScreen.cs: the label is 620 px wide and centered, then the
-    // ladybug sits in the left gap before the visible prompt text.
-    const labelLeftX = SCREEN.width * 0.5 - 620 * 0.5;
+    // The original title layout places the ladybug in the left gap before the
+    // prompt, slightly above the text baseline rather than centered on it.
+    const labelLeftX = SCREEN.width * 0.5 - PROMPT_LABEL_WIDTH * 0.5;
     const ladybug = this.scene.add
-      .sprite(labelLeftX + 70, bottomAreaCenterY, ASSET_KEYS.ladybug)
+      .sprite(labelLeftX + TITLE_LADYBUG_OFFSET_X, bottomAreaCenterY + TITLE_LADYBUG_OFFSET_Y, ASSET_KEYS.ladybug)
       .setOrigin(0.5, 0.5)
       .setDepth(TITLE_SCREEN_DEPTH + 1)
       .play(TITLE_PLAYER_MOVE_RIGHT);
@@ -172,7 +178,7 @@ class PhaserTitleScreenView implements TitleScreenView {
     this.promptText = createPixelText(this.scene, {
       text: 'PRESS ANY KEY',
       x: SCREEN.width * 0.5,
-      y: bottomAreaCenterY - 12,
+      y: bottomAreaCenterY + PRESS_ANY_KEY_OFFSET_Y,
       fontSize: 26,
       tint: WHITE,
       align: 'center',
@@ -183,7 +189,7 @@ class PhaserTitleScreenView implements TitleScreenView {
     this.fullscreenHintText = createPixelText(this.scene, {
       text: 'PRESS F FOR FULL SCREEN',
       x: SCREEN.width * 0.5,
-      y: bottomAreaCenterY + 62,
+      y: bottomAreaCenterY + FULLSCREEN_HINT_OFFSET_Y,
       fontSize: 26,
       tint: WHITE,
       align: 'center',
