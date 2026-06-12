@@ -24,6 +24,10 @@ The game is currently intended for **desktop browsers with keyboard or gamepad c
   <img src="doc/images/readme_gameplay.png" alt="Lady Bug web gameplay screen" width="390">
 </p>
 
+<p align="center">
+  <img src="doc/images/readme_part_screen.png" alt="Lady Bug web PART transition screen" width="390">
+</p>
+
 ## About the project
 
 This project is a web-oriented rewrite of the Godot remake of **Lady Bug**. The goal is to keep the game playable in a browser while preserving the arcade feel: grid-based maze movement, rotating gates, collectible timing, enemy release through the border timer, scoring rules, bonus vegetables and the SPECIAL / EXTRA word mechanics.
