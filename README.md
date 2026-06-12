@@ -68,7 +68,6 @@ Implemented systems include:
 
 Some systems are still approximate or intentionally not implemented yet:
 
-- exact pixel-perfect enemy edge cases around rotating gates;
 - high-score screen and persistence;
 - attract-mode / full original arcade presentation flow;
 - exact arcade hardware rendering details.
