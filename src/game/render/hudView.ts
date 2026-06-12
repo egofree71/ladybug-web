@@ -230,7 +230,7 @@ class PhaserHudView implements HudView {
   }
 
   public setLives(lives: number): void {
-    this.lives = Phaser.Math.Clamp(Math.floor(lives), 0, MAX_VISIBLE_LIFE_ICONS);
+    this.lives = Math.max(0, Math.floor(lives));
     this.updateLifeIconDisplay();
   }
 

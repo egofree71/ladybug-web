@@ -44,8 +44,6 @@ class PhaserTitleScreenView implements TitleScreenView {
     this.requestStart();
   };
 
-  private readonly startFromPointer = (): void => this.requestStart();
-
   public constructor(scene: Phaser.Scene) {
     this.scene = scene;
   }
@@ -69,7 +67,6 @@ class PhaserTitleScreenView implements TitleScreenView {
     this.addBottomPrompt();
 
     this.scene.input.keyboard?.on('keydown', this.startFromKeyboard);
-    this.scene.input.on('pointerdown', this.startFromPointer);
   }
 
   /** Gently pulses the prompt between white and light grey, like Godot. */
@@ -86,7 +83,6 @@ class PhaserTitleScreenView implements TitleScreenView {
 
   public hide(): void {
     this.scene.input.keyboard?.off('keydown', this.startFromKeyboard);
-    this.scene.input.off('pointerdown', this.startFromPointer);
 
     for (const object of this.objects) {
       object.destroy();

@@ -485,7 +485,7 @@ Responsibilities:
 - display `SPECIAL`;
 - display `EXTRA`;
 - display `x2 x3 x5`;
-- display reserve life icons;
+- display up to five reserve life icons;
 - display and update the current score;
 - display and update the x2 / x3 / x5 multiplier indicators;
 - display and update SPECIAL / EXTRA letter progress;
