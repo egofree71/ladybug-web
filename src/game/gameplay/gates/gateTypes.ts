@@ -1,3 +1,7 @@
+/**
+ * Shared gate type definitions used by layout, runtime state and collision
+ * checks.
+ */
 import type { Vector2i } from '../math/vector2';
 
 /** Stable visual orientation shown by a gate when it is not rotating. */

@@ -1,3 +1,7 @@
+/**
+ * Phaser view and thin facade for the current collectible field. It owns sprites
+ * but leaves scoring, word progress and popup timing to gameplay modules.
+ */
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 import {

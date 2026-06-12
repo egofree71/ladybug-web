@@ -1,3 +1,7 @@
+/**
+ * Keyboard and gamepad direction state for the player. It keeps last-pressed-
+ * wins behavior separate from the movement motor itself.
+ */
 import Phaser from 'phaser';
 import { readGamepadDirectionState, type GamepadDirectionName } from '../../input/gamepadInput';
 import { type Vector2i, VEC2 } from '../math/vector2';

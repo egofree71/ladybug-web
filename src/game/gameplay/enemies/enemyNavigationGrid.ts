@@ -1,3 +1,8 @@
+/**
+ * Logical navigation graph used by enemy pathfinding. It converts maze and
+ * rotating-gate state into graph edges that can be searched without touching
+ * Phaser objects.
+ */
 import { GateSystem } from '../gates/gateSystem';
 import { add, type Vector2i } from '../math/vector2';
 import { MazeGrid } from '../maze/mazeGrid';

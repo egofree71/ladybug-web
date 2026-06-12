@@ -1,3 +1,8 @@
+/**
+ * Builds the per-level plan for hearts, letters and skulls by replacing selected
+ * flower cells. The returned plan is also reused by the transition screen so the
+ * preview matches the actual board.
+ */
 import {
   COLLECTIBLE_COLOR,
   COLLECTIBLE_KIND,

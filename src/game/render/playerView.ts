@@ -1,3 +1,7 @@
+/**
+ * Phaser view for the living player, HUD entry animation and death sprites.
+ * Movement and death timing stay in gameplay state classes.
+ */
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 import { getPlayerScreenCenterFromArcadePixel, getPlayerStartCenter, PLAYER_LAYOUT } from '../layout/playerLayout';

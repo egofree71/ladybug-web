@@ -1,3 +1,7 @@
+/**
+ * Player placement helpers copied from the Godot coordinate system. They bridge
+ * HUD entry positions and in-maze arcade-pixel anchors.
+ */
 import { arcadeDeltaToScreenDelta, arcadePixelToScreenPosition, logicalCellToArcadePixel, PLAYFIELD_COORDS } from './playfieldCoordinates';
 import { getSpriteRenderOffsetArcade } from '../gameplay/player/playerMovementTuning';
 import { type Vector2i, VEC2 } from '../gameplay/math/vector2';

@@ -1,3 +1,7 @@
+/**
+ * Central sound facade for non-positional gameplay effects. Scene code calls
+ * semantic methods here instead of reaching directly for raw Phaser sound keys.
+ */
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 import { COLLECTIBLE_KIND, type CollectibleKind } from '../gameplay/collectibles/collectibleTypes';

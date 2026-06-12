@@ -1,3 +1,7 @@
+/**
+ * HUD view for SPECIAL, EXTRA, multiplier indicators, score, reserve lives and
+ * the HUD-to-maze life entry sprite.
+ */
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 import { FONT, HUD } from '../layout/screenLayout';

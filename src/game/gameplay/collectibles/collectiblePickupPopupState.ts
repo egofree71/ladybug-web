@@ -1,3 +1,8 @@
+/**
+ * Semantic state for the temporary score popup shown after heart and letter
+ * pickups. Rendering is handled elsewhere so the pause length stays testable
+ * without Phaser objects.
+ */
 import type { CollectibleCell } from './collectibleTypes';
 
 export interface CollectiblePickupPopupStartOptions {

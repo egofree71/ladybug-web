@@ -1,3 +1,7 @@
+/**
+ * Combines static maze walls with the dynamic rotating-gate overlay. Player and
+ * enemy movement use this layer instead of reading sprite pixels.
+ */
 import { arcadePixelToLogicalCell, gatePivotToArcadePixel } from '../../layout/playfieldCoordinates';
 import { add, equals, type Vector2i, VEC2, vec2 } from '../math/vector2';
 import { MazeGrid, type MazeStepResult } from '../maze/mazeGrid';

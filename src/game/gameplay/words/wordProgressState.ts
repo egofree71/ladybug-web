@@ -1,3 +1,7 @@
+/**
+ * Tracks SPECIAL and EXTRA progress from colored letter pickups. Rewards are
+ * applied by GameScene so this state remains focused on word completion.
+ */
 import { COLLECTIBLE_COLOR, type CollectibleColor, type LetterKind } from '../collectibles/collectibleTypes';
 
 export const WORD_COMPLETION_KIND = {

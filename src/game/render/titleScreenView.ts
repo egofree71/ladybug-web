@@ -1,3 +1,7 @@
+/**
+ * Godot-style title screen view. It animates title sprites and starts the game
+ * from keyboard or gamepad input only.
+ */
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 import { SCREEN } from '../layout/screenLayout';

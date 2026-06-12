@@ -1,3 +1,7 @@
+/**
+ * Player movement tuning constants ported from Godot. These values are
+ * intentionally centralized because small changes strongly affect arcade feel.
+ */
 import { type PlayfieldCollisionProfile } from '../playfield/playfieldCollision';
 import { type Vector2i, VEC2, equals, vec2 } from '../math/vector2';
 

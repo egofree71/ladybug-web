@@ -1,3 +1,7 @@
+/**
+ * Logical 11x11 maze representation loaded from maze.json. It answers one-pixel
+ * movement probes without depending on the rendered maze image.
+ */
 import { add, equals, type Vector2i, VEC2 } from '../math/vector2';
 
 const WALL_FLAGS = {

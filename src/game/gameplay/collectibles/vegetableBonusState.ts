@@ -1,3 +1,7 @@
+/**
+ * Runtime state for the central vegetable bonus. It tracks visibility, pickup,
+ * and the temporary enemy freeze without owning Phaser sprites.
+ */
 import { arcadePixelToLogicalCell } from '../../layout/playfieldCoordinates';
 import type { EnemySystem } from '../enemies/enemySystem';
 import type { Vector2i } from '../math/vector2';

@@ -1,3 +1,7 @@
+/**
+ * Pathfinding helper used by enemy AI to chase the player through the logical
+ * maze. It deliberately works on the navigation grid rather than Phaser pixels.
+ */
 import { arcadePixelToLogicalCell } from '../../layout/playfieldCoordinates';
 import type { MonsterEntity } from './monsterEntity';
 import { MONSTER_DIR } from './monsterDirection';

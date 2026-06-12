@@ -1,3 +1,7 @@
+/**
+ * Catalog of enemy visuals and per-level sprite animation data. Levels 1-8
+ * introduce one enemy type, then later levels rotate several types.
+ */
 import { ASSET_KEYS } from '../../assets';
 
 export interface EnemySpriteInfo {

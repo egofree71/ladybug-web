@@ -1,3 +1,7 @@
+/**
+ * Runtime model for the rotating gates. It tracks logical blocking axes and
+ * accepted pushes, while gateView.ts only reflects that state visually.
+ */
 import { keyOf, type Vector2i } from '../math/vector2';
 import type { GateContactHalf, GateRuntimeDefinition } from './gateTypes';
 import { RotatingGateRuntimeState } from './rotatingGateRuntimeState';

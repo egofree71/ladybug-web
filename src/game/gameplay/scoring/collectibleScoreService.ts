@@ -1,3 +1,7 @@
+/**
+ * Score rules for flowers, hearts and letters. The current heart multiplier is
+ * applied by this pure helper so scene code can stay orchestration-only.
+ */
 import { COLLECTIBLE_COLOR, COLLECTIBLE_KIND, type CollectibleColor, type CollectibleKind } from '../collectibles/collectibleTypes';
 
 export interface CollectibleScoreCalculation {

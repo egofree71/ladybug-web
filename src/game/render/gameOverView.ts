@@ -1,3 +1,7 @@
+/**
+ * Phaser view for the Godot-style GAME OVER overlay shown inside the maze before
+ * returning to the title screen.
+ */
 import Phaser from 'phaser';
 import { MAZE, SCREEN } from '../layout/screenLayout';
 import { createPixelText } from './pixelTextView';

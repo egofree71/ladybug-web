@@ -1,3 +1,8 @@
+/**
+ * Chooses enemy directions at valid decision points. Movement execution stays in
+ * EnemySystem; this module only decides which direction should be attempted
+ * next.
+ */
 import { arcadePixelToLogicalCell } from '../../layout/playfieldCoordinates';
 import { add, type Vector2i } from '../math/vector2';
 import { PlayfieldCollisionResolver } from '../playfield/playfieldCollision';

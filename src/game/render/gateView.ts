@@ -1,3 +1,7 @@
+/**
+ * Phaser view for rotating gates. It reflects GateSystem state and keeps the
+ * short diagonal turning frame out of gameplay logic.
+ */
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 import { GATE_DEFINITIONS, type GateOrientation } from '../layout/gateLayout';

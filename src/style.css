@@ -1,3 +1,6 @@
+/**
+ * Page-level styling for the Phaser canvas. Normal mode centers the scaled game, while native mode keeps the real 800x880 canvas for pixel checks.
+ */
 html,
 body,
 #app {

@@ -1,3 +1,6 @@
+/**
+ * Shared type definitions for player turn windows and movement directions.
+ */
 import type { Vector2i } from '../math/vector2';
 
 export const PLAYER_TURN_PATH = {

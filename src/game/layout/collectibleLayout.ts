@@ -1,3 +1,7 @@
+/**
+ * Collectible placement helpers and sprite-frame constants. Positions use the
+ * logical collectible grid rather than measurements from scaled screenshots.
+ */
 import { MAZE } from './screenLayout';
 import type { CollectibleCell } from '../gameplay/collectibles/collectibleTypes';
 

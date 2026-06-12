@@ -1,3 +1,7 @@
+/**
+ * Precomputed turn-window maps derived from maze.json. They tell the movement
+ * motor where assisted turns can begin before cell centers.
+ */
 import { type Vector2i } from '../math/vector2';
 import { MazeGrid } from '../maze/mazeGrid';
 

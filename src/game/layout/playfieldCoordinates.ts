@@ -1,3 +1,8 @@
+/**
+ * Coordinate conversion layer between logical cells, arcade pixels and Phaser
+ * screen pixels. Gameplay code should use these helpers instead of ad-hoc
+ * offsets.
+ */
 import { LEVEL_SCENE_OFFSET } from './screenLayout';
 import { type Vector2i, vec2 } from '../gameplay/math/vector2';
 

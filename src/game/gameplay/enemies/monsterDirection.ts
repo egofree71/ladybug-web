@@ -1,3 +1,7 @@
+/**
+ * Shared direction helpers for enemy movement. They keep vector math and
+ * opposite-direction checks consistent across AI, collision and rendering code.
+ */
 import { equals, type Vector2i, VEC2 } from '../math/vector2';
 
 /**

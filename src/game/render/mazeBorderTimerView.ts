@@ -1,3 +1,7 @@
+/**
+ * Phaser view for the outer border timer. The timer runtime decides progress;
+ * this view only paints white/green tile states in cycle order.
+ */
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 import { EnemyReleaseBorderTimer, type EnemyReleaseBorderTimerStepResult } from '../gameplay/enemies/enemyReleaseBorderTimer';

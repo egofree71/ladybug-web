@@ -1,3 +1,7 @@
+/**
+ * Small adapter around Phaser gamepad state. It turns D-pad, left stick and
+ * start/A buttons into the same high-level inputs used by keyboard play.
+ */
 import Phaser from 'phaser';
 
 export type GamepadDirectionName = 'left' | 'right' | 'up' | 'down';

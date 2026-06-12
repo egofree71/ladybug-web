@@ -1,3 +1,7 @@
+/**
+ * Phaser view for the enemy field. It creates sprites and animations for the
+ * four enemy slots while EnemySystem owns all lifecycle and movement rules.
+ */
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 import type { GateSystem } from '../gameplay/gates/gateSystem';
@@ -9,6 +13,8 @@ import { getEnemySpriteRenderOffsetArcade } from '../gameplay/enemies/enemyMovem
 import { MONSTER_DIR, type MonsterDir } from '../gameplay/enemies/monsterDirection';
 import type { MonsterEntity } from '../gameplay/enemies/monsterEntity';
 
+// Enemies sit above collectibles and gates during normal play; the player death
+// sequence can temporarily hide them from GameScene when the arcade flow requires it.
 const ENEMY_DEPTH = 55;
 
 export interface EnemyFieldView {
@@ -47,6 +53,9 @@ export function createEnemies(
     spritesByMonsterId.set(monster.id, sprite);
   }
 
+  // The facade keeps GameScene from reaching into Phaser sprite maps. Scene code
+  // can advance/reset the enemy field as a gameplay unit, while this file remains
+  // responsible for synchronizing runtime state into sprites.
   const facade: EnemyFieldView = {
     enemySystem,
 
@@ -93,6 +102,7 @@ export function createEnemies(
   return facade;
 }
 
+/** Synchronizes all enemy sprites after one runtime change or fixed simulation tick. */
 function syncSprites(
   monsters: readonly MonsterEntity[],
   spritesByMonsterId: ReadonlyMap<number, Phaser.GameObjects.Sprite>,
@@ -117,6 +127,7 @@ function syncSprites(
   }
 }
 
+/** Converts the enemy arcade-pixel anchor plus direction-specific Godot offset into screen space. */
 function enemyScreenCenter(monster: MonsterEntity): Phaser.Math.Vector2 {
   const anchor = arcadePixelToScreenPosition(monster.arcadePixelPos);
   const renderOffset = arcadeDeltaToScreenDelta(getEnemySpriteRenderOffsetArcade(monster.direction));
@@ -124,6 +135,7 @@ function enemyScreenCenter(monster: MonsterEntity): Phaser.Math.Vector2 {
   return new Phaser.Math.Vector2(anchor.x + renderOffset.x, anchor.y + renderOffset.y);
 }
 
+/** Applies the minimal animation set used by the source sprites: right and up, with flips for left/down. */
 function applyEnemyFacing(
   sprite: Phaser.GameObjects.Sprite,
   direction: MonsterDir,
@@ -171,6 +183,7 @@ function playAnimationIfNeeded(sprite: Phaser.GameObjects.Sprite, key: string): 
   sprite.play(key);
 }
 
+/** Registers shared enemy animations once; Phaser animations are global to the game instance. */
 function ensureEnemyAnimations(scene: Phaser.Scene): void {
   const loadedKeys = [
     ASSET_KEYS.enemyLevel1,

@@ -1,3 +1,7 @@
+/**
+ * Authoritative rotating-gate placement copied from the Godot level. The same
+ * definitions feed both rendering and runtime collision state.
+ */
 import { LEVEL_SCENE_OFFSET } from './screenLayout';
 import type { GateRuntimeDefinition } from '../gameplay/gates/gateTypes';
 

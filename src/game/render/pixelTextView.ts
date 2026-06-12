@@ -1,3 +1,8 @@
+/**
+ * Bitmap-font text renderer used by HUD and overlays. It avoids browser text
+ * antialiasing and provides a small generated fallback for missing glyphs such
+ * as equals.
+ */
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 

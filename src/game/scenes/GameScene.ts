@@ -1,3 +1,8 @@
+/**
+ * Main Phaser scene and orchestration layer. Dedicated gameplay modules own
+ * rules; this scene wires fixed ticks, views, sounds, debug hooks and level flow
+ * together.
+ */
 import Phaser from 'phaser';
 import { ASSET_KEYS, assetUrl } from '../assets';
 import { GameplaySoundPlayer } from '../audio/gameplaySoundPlayer';

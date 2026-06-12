@@ -1,3 +1,7 @@
+/**
+ * Phaser view for the central vegetable bonus. It mirrors VegetableBonusState
+ * and reports pickup through a small facade.
+ */
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 import { ENEMY_MOVEMENT_TUNING, getEnemySpriteRenderOffsetArcade } from '../gameplay/enemies/enemyMovementTuning';

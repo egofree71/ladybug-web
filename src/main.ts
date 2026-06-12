@@ -1,3 +1,7 @@
+/**
+ * Application entry point. It creates the Phaser game, configures desktop
+ * scaling modes, and enables the browser Gamepad API for the scene input layer.
+ */
 import Phaser from 'phaser';
 import './style.css';
 import { assetUrl } from './game/assets';

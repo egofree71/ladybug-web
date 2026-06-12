@@ -1,3 +1,8 @@
+/**
+ * Consumes collectibles along every committed one-pixel player segment. This
+ * mirrors the Godot movement motor and avoids missing pickups during assisted
+ * turns.
+ */
 import {
   arcadePixelToLogicalCell,
   logicalCellToArcadePixel,

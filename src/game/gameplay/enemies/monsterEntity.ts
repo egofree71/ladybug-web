@@ -1,3 +1,7 @@
+/**
+ * Plain runtime model for one enemy slot. The entity stores arcade-pixel state
+ * only; Phaser sprites are created by the render layer.
+ */
 import type { Vector2i } from '../math/vector2';
 import { MONSTER_DIR, type MonsterDir } from './monsterDirection';
 

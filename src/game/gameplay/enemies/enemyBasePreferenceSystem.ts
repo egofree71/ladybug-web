@@ -1,3 +1,8 @@
+/**
+ * Arcade-inspired direction preference helper for enemies. It provides
+ * deterministic fallback ordering when chase/path decisions do not produce a
+ * valid move.
+ */
 import type { Vector2i } from '../math/vector2';
 import { MONSTER_DIR, type MonsterDir, vectorToMonsterDir } from './monsterDirection';
 import type { MonsterEntity } from './monsterEntity';

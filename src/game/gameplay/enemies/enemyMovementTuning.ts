@@ -1,3 +1,8 @@
+/**
+ * Tuning constants for enemy movement and rendering offsets. Keeping them here
+ * makes it easier to compare with the Godot values during pixel-perfect
+ * refinements.
+ */
 import type { PlayfieldCollisionProfile } from '../playfield/playfieldCollision';
 import { type Vector2i, vec2 } from '../math/vector2';
 import { MONSTER_DIR, type MonsterDir } from './monsterDirection';

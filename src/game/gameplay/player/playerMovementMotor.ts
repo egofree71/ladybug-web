@@ -1,3 +1,7 @@
+/**
+ * Integer arcade-pixel player movement motor. It owns rail snapping, turn
+ * windows, assisted turns, gate pushes and committed segment reporting.
+ */
 import {
   arcadePixelToLogicalCell,
   logicalCellToArcadePixel,

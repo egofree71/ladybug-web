@@ -1,3 +1,7 @@
+/**
+ * Applies arcade-style turn-window rules for the player. It decides when a
+ * requested direction may be assisted into alignment.
+ */
 import { equals, isHorizontal, isVertical, type Vector2i, VEC2, vec2 } from '../math/vector2';
 import { PlayerTurnWindowMaps, type TurnLanePair } from './playerTurnWindowMaps';
 import {

@@ -1,3 +1,7 @@
+/**
+ * Owns the four enemy slots, their lair lifecycle, release attempts, movement
+ * ticks, skull deaths and freeze state. Rendering is kept in enemyView.ts.
+ */
 import { arcadePixelToLogicalCell } from '../../layout/playfieldCoordinates';
 import type { GateSystem } from '../gates/gateSystem';
 import type { Vector2i } from '../math/vector2';

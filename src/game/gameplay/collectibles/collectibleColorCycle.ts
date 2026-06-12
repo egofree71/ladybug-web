@@ -1,3 +1,8 @@
+/**
+ * Tick-based global color cycle for hearts and letters. It stays separate from
+ * the border timer because collectible colors and enemy release cadence are
+ * independent arcade systems.
+ */
 import {
   COLLECTIBLE_COLOR,
   type CollectibleColor,

@@ -1,3 +1,7 @@
+/**
+ * Legacy Vite starter helper kept only because it still ships with the generated
+ * project template. The Lady Bug game does not call this file.
+ */
 export function setupCounter(element: HTMLButtonElement) {
   let counter = 0
   const setCounter = (count: number) => {

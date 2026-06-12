@@ -1,3 +1,7 @@
+/**
+ * Tick-based player death animation state ported from Godot. The render layer
+ * consumes these semantic frames to draw the red shrink and ghost sequence.
+ */
 import { add, type Vector2i, VEC2, vec2 } from '../math/vector2';
 
 export const PLAYER_DEATH_VISUAL_SHEET = {

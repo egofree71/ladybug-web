@@ -1,3 +1,7 @@
+/**
+ * Mutable runtime state for the twenty rotating gates, including the short
+ * diagonal visual phase after an accepted push.
+ */
 import { equals, type Vector2i, VEC2 } from '../math/vector2';
 import {
   GATE_CONTACT_HALF,

@@ -1,3 +1,8 @@
+/**
+ * Godot-style PART screen shown before each playable level. It previews the next
+ * vegetable, skulls, letters and hearts from the exact spawn plan that will be
+ * used.
+ */
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets';
 import { COLLECTIBLE_FRAMES, COLLECTIBLE_TINTS } from '../layout/collectibleLayout';

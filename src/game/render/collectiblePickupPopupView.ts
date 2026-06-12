@@ -1,3 +1,7 @@
+/**
+ * Phaser view for the temporary heart/letter score popup. The tick countdown
+ * lives in collectiblePickupPopupState.ts.
+ */
 import Phaser from 'phaser';
 import { COLLECTIBLE_PICKUP_POPUP_LAYOUT } from '../layout/collectibleLayout';
 import type { CollectibleCell } from '../gameplay/collectibles/collectibleTypes';
