@@ -24,15 +24,11 @@ The game is currently intended for **desktop browsers with keyboard or gamepad c
   <img src="doc/images/readme_gameplay.png" alt="Lady Bug web gameplay screen" width="390">
 </p>
 
-<p align="center">
-  <img src="doc/images/readme_part_screen.png" alt="Lady Bug web PART transition screen" width="390">
-</p>
-
 ## About the project
 
 This project is a web-oriented rewrite of the Godot remake of **Lady Bug**. The goal is to keep the game playable in a browser while preserving the arcade feel: grid-based maze movement, rotating gates, collectible timing, enemy release through the border timer, scoring rules, bonus vegetables and the SPECIAL / EXTRA word mechanics.
 
-The web implementation uses the Godot version as the main behavioral reference. Systems are intentionally split into small gameplay, rendering, layout, audio and debug modules so that arcade-specific rules do not get buried inside the Phaser scene.
+The web implementation uses the Godot version as the main behavioral reference. Systems are intentionally split into small gameplay, rendering, layout and audio modules so that arcade-specific rules do not get buried inside the Phaser scene.
 
 ## Current status
 
@@ -95,29 +91,6 @@ The title screen ignores system / utility keys such as `Escape`, `F1`, `F2` and 
 
 For movement, the D-pad has priority over the analog stick because Lady Bug needs precise arcade turns.
 
-## Debug mode
-
-Debug commands are available by adding `?debug=1` to the URL, then using the browser console:
-
-```js
-ladyBugDebug.help();
-ladyBugDebug.status();
-ladyBugDebug.releaseNextEnemy();
-ladyBugDebug.releaseAllEnemies();
-ladyBugDebug.nextLevel();
-ladyBugDebug.completeExtraWord();
-ladyBugDebug.completeSpecialWord();
-ladyBugDebug.runtime();
-```
-
-A shorter alias is also available:
-
-```js
-lbDebug.status();
-```
-
-Debug mode is meant for development and manual testing, especially for systems that are slow to trigger naturally, such as enemy release, vegetable appearance and word-completion awards.
-
 ## Technology
 
 - Phaser 4
@@ -159,24 +132,11 @@ npm run preview
 
 Displays the canvas at its real `800 x 880` size. Useful for pixel measurements and alignment checks.
 
-```text
-?debug=1
-```
-
-Enables the browser-console debug helpers.
-
-Both can be combined:
-
-```text
-?native=1&debug=1
-```
-
 ## Project structure
 
 ```text
 public/assets/   Runtime assets served by Vite
 src/game/audio/  Gameplay sound facade
-src/game/debug/  Browser-console debug helpers
 src/game/gameplay/ Pure gameplay state and rules
 src/game/input/  Keyboard / gamepad input helpers
 src/game/layout/ Screen, maze, gate, player and collectible placement constants
