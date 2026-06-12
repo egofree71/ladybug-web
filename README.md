@@ -21,7 +21,7 @@ The game is currently intended for **desktop browsers with keyboard or gamepad c
 
 <p align="center">
   <img src="doc/images/readme_title_screen.png" alt="Lady Bug web title screen" width="390">
-  <img src="doc/images/readme_gameplay.png" alt="Lady Bug web gameplay screen" width="390">
+  <img src="doc/images/readme_gameplay_level_1.png" alt="Lady Bug web gameplay screen" width="390">
 </p>
 
 <p align="center">
